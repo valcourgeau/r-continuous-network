@@ -36,3 +36,4 @@ vignettes/*.pdf
 rsconnect/
 *.Rcheck
 *.Rproj
+.Rproj.user
