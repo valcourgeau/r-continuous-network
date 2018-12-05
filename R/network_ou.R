@@ -71,10 +71,9 @@ nOUmleResiduals <- function(d, n, nw_topo, levy_cov,
   nw_statio <- networkOUCov(nw_topo = nw_topo, 
                             levy_cov = levy_cov, dtime = dtime)
   nw_statio <- kronecker(solve(nw_statio), levy_cov)
-  print(nw_statio)
   d.square <- dim(nw_statio)[1]
   return(mvrnorm(n = n, mu=rep(0, d.square), 
-                 Sigma = nw_statio/horizon, empirical = F))
+                 Sigma = nw_statio/horizon, empirical = empirical))
 }
 
 # Example
@@ -93,17 +92,30 @@ sims <- nOUmleResiduals(d = d, n = n, nw_topo = nw_topo, levy_cov = nw_cov,
                 horizon = horizon)
 cor(sims)
 
+# High-dim example
+source("../../../R/network_generation.R")
+d <- 10
+p.link <- 0.2
+n <- 1000
+set.seed(42)
+nw_topo <- genRdmAssymetricGraphs(d = d, p.link = p.link, theta_1=0.5/d)
+eigen(nw_topo)$values
+nw_cov <- genLevyCovMatrix(d = d)
+horizon <- n * 1/24
+
+sims <- nOUmleResiduals(d = d, n = n, nw_topo = nw_topo, levy_cov = nw_cov,
+                        horizon = horizon)
+
 library(mvtnorm)
 nOUmleResidualsCI <- function(p, nw_topo, levy_cov, horizon, dtime = 0.1, tail = 'both'){
   # Computes the equicoordinate quantile function of the multivariate normal distribution
-  # find x s.t. P(-x < X < x) = p
+  # find x in R s.t. P(-x < X < x) = p
   # TODO Better second moment for \LL_1 including jumps
   nw_statio <- networkOUCov(nw_topo = nw_topo, 
                             levy_cov = levy_cov, dtime = dtime)
  
   nw_statio <- as.matrix(kronecker(solve(nw_statio), levy_cov))
   d.square <- dim(nw_statio)[1]
-  print(d.square)
   return(qmvnorm(p=p, mean = rep(0, d.square), sigma = nw_statio/horizon, tail=tail))
 }
 
