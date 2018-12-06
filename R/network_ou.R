@@ -3,6 +3,8 @@ library("foreach")
 library("doParallel")
 
 scaleMatrix <- function(x, time){
+  # Allows to compute matrix times a collection of scalars
+  # returns a list
   res <- list()
   n_max <- length(time)
   for(i in 1:n_max){
@@ -13,6 +15,8 @@ scaleMatrix <- function(x, time){
 }
 
 collectionMatrix <- function(coll, x){
+  # Allows to compute a collection of matrices by another matrix
+  # returns a list
   res <- list()
   n_max <- length(time)
   for(i in 1:n_max){
