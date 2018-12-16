@@ -36,19 +36,27 @@ StdTopo(nw_topo = nw_topo)
 test_topo <- matrix(1, ncol=3, nrow=3)
 StdTopo(nw_topo = test_topo)
 
-DataFiltering <- function(data, thresholds, diff=F){
+DataFiltering <- function(data, thresholds, diff=F, one_d=F){
   # Shall we have the first or second point when diff=F?
   filtered_data <- diff(data)
-  filtered_data <= thresholds
+  N <- length(data[,1])
   
-  under_thres <- t(apply(filtered_data, MARGIN = 1, '<=', thresholds))
-  
-  if(diff){
-    return(filtered_data*under_thres)
+ 
+  if(one_d){
+    indicator_data <- (abs(filtered_data) <= thresholds)
+    if(diff){
+      return(filtered_data * indicator_data)
+    }else{
+      return(data[-N,] * indicator_data)
+    }
   }else{
-    #under_thres <- rbind(under_thres, rep(F, length(data[1,])))
-    return(matrix(data[which(under_thres)], 
-                  nrow=length(data[,1])-1))
+    under_thres <- t(apply(abs(filtered_data), 
+                           MARGIN = 1, '<=', thresholds))
+    if(diff){
+      return(filtered_data*under_thres)
+    }else{
+      return(data[-N,] * under_thres)
+    }
   }
 }
 
@@ -74,6 +82,22 @@ times <- c(1,2,4,7,11)
 TimeMatrix(times, ncol = 2, diff=F)
 TimeMatrix(times, ncol = 2, diff=T)
 
+NOUfit1D <- function(times, data, threshold){
+    N <- length(data)
+    if(threshold <= 0){
+      stop('threshold should be positive.')
+    }
+    
+    diff_filtered <- DataFiltering(as.matrix(data),
+                                   as.vector(threshold), diff=T)
+    diff_times <- diff(times)
+    return(diff_times)
+}
+
+# Example
+NOUfit1D(times = 1:10, 1:10, 1)
+
+
 NOUfit <- function(nw_topo, times, data, thresholds){
   # fitting MLE to the network
   # TODO add support for jumps by using s- instead of s
@@ -85,6 +109,8 @@ NOUfit <- function(nw_topo, times, data, thresholds){
   if(max(Re(eigen(nw_test)$values)) <= 0){
     stop("Q matrix should be positive definite.")
   }
+  
+  remove(nw_test) # delete test matrix
   
   d <- length(data[1,])
   N <- length(data[,1])
@@ -127,13 +153,14 @@ NOUfit <- function(nw_topo, times, data, thresholds){
 #source("R/network_generation.R")
 
 {
+  source("R/network_generation.R")
   d <- 5 #dims
   N <- 24*15 #numbers of points
   Y0 <- 1 #start point
   
   delta_t <- 1e-2
   
-  sigma <- 1
+  sigma <- 0.1
   set.seed(42)
   nw_topo <- genRdmAssymetricGraphs(d = d, p.link = 0.25,
                          theta_1 = 1, theta_2 = 0)
@@ -142,7 +169,7 @@ NOUfit <- function(nw_topo, times, data, thresholds){
   times <- seq(from = 0, by = delta_t, length.out = N)
   nw_data_bm <- matrix(rnorm(n = d*N, mean = 0, sd = sigma*sqrt(delta_t)), ncol = d)
   nw_data <- matrix(0, ncol=d, nrow=N)
-  nw_data[1,] <- 1:d/d
+  nw_data[1,] <- nw_data_bm[1,]
   
   nw_q <- 0.1*nw_topo
   diag(nw_q) <- 1
