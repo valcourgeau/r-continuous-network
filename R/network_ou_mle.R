@@ -69,12 +69,16 @@ data
 DataFiltering(data, c(2,3,6))
 DataFiltering(data, c(2,3,6), diff = T)
 
-TimeMatrix <- function(times, ncol, diff=F){
+TimeMatrix <- function(times, ncol, diff=F, one_d=F){
   if(diff){
     times <- diff(times)
   }
   
-  return(t(matrix(rep(times, each=ncol), nrow=ncol)))
+  if(one_d){
+    return(times)
+  }else{
+    return(t(matrix(rep(times, each=ncol), nrow=ncol)))
+  }
 }
 
 # Example
@@ -89,7 +93,8 @@ NOUfit1D <- function(times, data, threshold){
     }
     
     diff_filtered <- DataFiltering(as.matrix(data),
-                                   as.vector(threshold), diff=T)
+                                   as.vector(threshold),
+                                   diff=T, one_d = T)
     diff_times <- diff(times)
     return(diff_times)
 }
