@@ -84,18 +84,16 @@ plot(density(mean_load_log),
      xlab="Log of mean-load")
 
 # Graphical VAR model
-
-
-
-
+# Simulate data:
+Sim <- simMLgvar(nTime = 50, nPerson = 10, nVar = 3)
+# Estimate model:
+Res <- mlGraphicalVAR(Sim$data, vars = Sim$vars, idvar ="ID")
+Res <- mlGraphicalVAR(Sim$data, vars = Sim$vars, idvar = Sim$idvar)
 
 # Prophet part
 df <- load_nodes[,1:2]
 colnames(df) <- c("ds", "y")
 df_prophet <- prophet(df) # PROPHET
-
-
-
 
 par(xpd=FALSE)
 plot(df$y, type="l")

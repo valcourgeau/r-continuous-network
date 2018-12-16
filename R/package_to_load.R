@@ -8,6 +8,7 @@ pckgs_to_load <- c(
   "intergraph",
   "visNetwork",
   "magrittr",
+  "mlVAR",
   "graphicalVAR"
 )
 
