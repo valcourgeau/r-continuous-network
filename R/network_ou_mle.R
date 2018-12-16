@@ -36,6 +36,44 @@ StdTopo(nw_topo = nw_topo)
 test_topo <- matrix(1, ncol=3, nrow=3)
 StdTopo(nw_topo = test_topo)
 
+DataFiltering <- function(data, thresholds, diff=F){
+  # Shall we have the first or second point when diff=F?
+  filtered_data <- diff(data)
+  filtered_data <= thresholds
+  
+  under_thres <- t(apply(filtered_data, MARGIN = 1, '<=', thresholds))
+  
+  if(diff){
+    return(filtered_data*under_thres)
+  }else{
+    #under_thres <- rbind(under_thres, rep(F, length(data[1,])))
+    return(matrix(data[which(under_thres)], 
+                  nrow=length(data[,1])-1))
+  }
+}
+
+# Example
+data <- c(1,2,5,
+          1,3,6,
+          1,4,7)
+data <- t(matrix(data, ncol=3))
+data
+DataFiltering(data, c(2,3,6))
+DataFiltering(data, c(2,3,6), diff = T)
+
+TimeMatrix <- function(times, ncol, diff=F){
+  if(diff){
+    times <- diff(times)
+  }
+  
+  return(t(matrix(rep(times, each=ncol), nrow=ncol)))
+}
+
+# Example
+times <- c(1,2,4,7,11)
+TimeMatrix(times, ncol = 2, diff=F)
+TimeMatrix(times, ncol = 2, diff=T)
+
 NOUfit <- function(nw_topo, times, data, thresholds){
   # fitting MLE to the network
   # TODO add support for jumps by using s- instead of s
@@ -58,21 +96,13 @@ NOUfit <- function(nw_topo, times, data, thresholds){
     stop('Wrong dimensions between data and times.')
   }
   
-  diff_times <- diff(times)
-  diff_times <- t(matrix(rep(diff_times, d), nrow=d))
-  diff_filtered <- diff(data)
+  diff_filtered <- DataFiltering(data, thresholds, diff=T)
+  diff_times <- TimeMatrix(times, ncol = d, diff=T)
   
-  # TODO test this filtering method
-  diff_filtered <- diff_filtered * (diff_filtered <= 
-                                      matrix(rep(thresholds, each=N-1), ncol=d))
-  nw_nodiag <- abs(nw_topo) #ensuring matrix {0,1}
-  diag(nw_nodiag) <- 0 # diag to zero
-  nw_nodiag <- nw_nodiag / rowSums(nw_nodiag)
-  a_bar_y_t <- t(nw_nodiag %*% t(data))
-  print(dim(a_bar_y_t))
+  a_bar_y_t <- t(nw_topo %*% t(data))
   a_bar_y_t <- a_bar_y_t[-N,]
   y_t <- data[-N,]
-  print(dim(y_t))
+
   wide_mle_xi <- - matrix(c(
       sum(a_bar_y_t^2*diff_times), sum(a_bar_y_t*y_t*diff_times),
       sum(a_bar_y_t*y_t*diff_times), sum(y_t^2*diff_times)
@@ -86,42 +116,42 @@ NOUfit <- function(nw_topo, times, data, thresholds){
   results <- list("MLE_wide"=
                     as.vector(solve(a = wide_mle_xi, b = wide_mle_c_filtered)))
   
-  nw_nodiag <- results[["MLE_wide"]][1] * nw_nodiag
-  diag(nw_nodiag) <- results[["MLE_wide"]][2]
-  results[["Q"]] <- nw_nodiag
+  nw_topo <- results[["MLE_wide"]][1] * nw_topo
+  diag(nw_topo) <- results[["MLE_wide"]][2]
+  results[["Q"]] <- nw_topo
   
   return(results)
 } 
 
 # Example
-source("R/network_generation.R")
+#source("R/network_generation.R")
 
 {
-  d <- 10 #dims
-  N <- 24*1000 #numbers of points
+  d <- 5 #dims
+  N <- 24*15 #numbers of points
   Y0 <- 1 #start point
   
-  delta_t <- 1e-3
+  delta_t <- 1e-2
   
   sigma <- 1
   set.seed(42)
   nw_topo <- genRdmAssymetricGraphs(d = d, p.link = 0.25,
                          theta_1 = 1, theta_2 = 0)
-  diag(nw_topo) <- 0
-  nw_topo <- nw_topo / rowSums(nw_topo)
-  nw_topo
+  nw_topo <- StdTopo(nw_topo)
   
   times <- seq(from = 0, by = delta_t, length.out = N)
   nw_data_bm <- matrix(rnorm(n = d*N, mean = 0, sd = sigma*sqrt(delta_t)), ncol = d)
-  nw_data <- nw_data_bm
-  nw_data[1,] <- rep(Y0, d)
+  nw_data <- matrix(0, ncol=d, nrow=N)
+  nw_data[1,] <- 1:d/d
   
-  nw_q <- 0.5*nw_topo
-  diag(nw_q) <- 5
+  nw_q <- 0.1*nw_topo
+  diag(nw_q) <- 1
   
   for(index in 2:N){
-    nw_data[i,] <- - (nw_q %*% nw_data[i-1,]) * (times[i]-times[i-1]) + nw_data_bm[i,]
+    nw_data[index,] <-  -(nw_q %*% nw_data[index-1,]) * (times[index]-times[index-1]) + nw_data_bm[index,]
   }
+  
+  plot(nw_data[1:300,1], type="l")
   
   #nw_data <- Y0 + apply(X = nw_data, MARGIN = 2, FUN = function(x){cumsum(x)})
   thresholds <- rep(10, d)
