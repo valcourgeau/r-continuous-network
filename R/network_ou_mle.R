@@ -36,23 +36,23 @@ StdTopo(nw_topo = nw_topo)
 test_topo <- matrix(1, ncol=3, nrow=3)
 StdTopo(nw_topo = test_topo)
 
-DataFiltering <- function(data, thresholds, diff=F, one_d=F){
-  # Shall we have the first or second point when diff=F?
+DataFiltering <- function(data, thresholds, diff_values=F, one_d=F){
+  # Shall we have the first or second point when diff_values=F?
   filtered_data <- diff(data)
-  N <- length(data[,1])
-  
  
   if(one_d){
+    N <- length(data)
     indicator_data <- (abs(filtered_data) <= thresholds)
-    if(diff){
+    if(diff_values){
       return(filtered_data * indicator_data)
     }else{
       return(data[-N,] * indicator_data)
     }
   }else{
+    N <- length(data[,1])
     under_thres <- t(apply(abs(filtered_data), 
                            MARGIN = 1, '<=', thresholds))
-    if(diff){
+    if(diff_values){
       return(filtered_data*under_thres)
     }else{
       return(data[-N,] * under_thres)
@@ -69,10 +69,9 @@ data
 DataFiltering(data, c(2,3,6))
 DataFiltering(data, c(2,3,6), diff = T)
 
-TimeMatrix <- function(times, ncol, diff=F, one_d=F){
-  if(diff){
-    times <- diff(times)
-  }
+TimeMatrix <- function(times, ncol, one_d=F){
+  # remove one_d just usel ncol
+  times <- diff(times)
   
   if(one_d){
     return(times)
@@ -83,8 +82,9 @@ TimeMatrix <- function(times, ncol, diff=F, one_d=F){
 
 # Example
 times <- c(1,2,4,7,11)
-TimeMatrix(times, ncol = 2, diff=F)
-TimeMatrix(times, ncol = 2, diff=T)
+TimeMatrix(times, ncol = 2)
+TimeMatrix(times, ncol = 2)
+
 
 NOUfit1D <- function(times, data, threshold){
     N <- length(data)
@@ -92,15 +92,46 @@ NOUfit1D <- function(times, data, threshold){
       stop('threshold should be positive.')
     }
     
-    diff_filtered <- DataFiltering(as.matrix(data),
-                                   as.vector(threshold),
-                                   diff=T, one_d = T)
-    diff_times <- diff(times)
-    return(diff_times)
+    diff_filtered <- DataFiltering(data,
+                                   thresholds = threshold,
+                                   diff_values=T, one_d = T)
+    diff_times <- TimeMatrix(times = times, ncol=1, one_d=T)
+
+    mle_estimate_up <- data[-N] * diff_filtered 
+    mle_estimate_down <- data[-N] * data[-N]^2
+    return(-sum(mle_estimate_up) / sum(mle_estimate_down))
 }
 
 # Example
-NOUfit1D(times = 1:10, 1:10, 1)
+{
+  source("R/network_generation.R")
+  d <- 1 #dims
+  N <- 24*15000 #numbers of points
+  Y0 <- 1 #start point
+  
+  delta_t <- 1e-4
+  
+  sigma <- 0.1
+  set.seed(42)
+  nw_topo <- genRdmAssymetricGraphs(d = d, p.link = 0.25,
+                                    theta_1 = 1, theta_2 = 0)
+  nw_topo <- StdTopo(nw_topo)
+  
+  times <- seq(from = 0, by = delta_t, length.out = N)
+  nw_data_bm <- matrix(rnorm(n = d*N, mean = 0, sd = sigma*sqrt(delta_t)), ncol = d)
+  nw_data <- matrix(0, ncol=d, nrow=N)
+  nw_data[1,] <- nw_data_bm[1,]*sqrt(delta_t)
+  
+  nw_q <- 0.1*nw_topo
+  diag(nw_q) <- 1
+  
+  for(index in 2:N){
+    nw_data[index,] <-  nw_data[index-1,] - (nw_q %*% nw_data[index-1,]) * (times[index]-times[index-1]) + nw_data_bm[index,]
+  }
+  
+  plot(nw_data[1:300,1], type="l")
+  NOUfit1D(times = times, data = nw_data, threshold = 5)
+}
 
 
 NOUfit <- function(nw_topo, times, data, thresholds){
@@ -127,9 +158,8 @@ NOUfit <- function(nw_topo, times, data, thresholds){
     stop('Wrong dimensions between data and times.')
   }
   
-  diff_filtered <- DataFiltering(data, thresholds, diff=T)
-  diff_times <- TimeMatrix(times, ncol = d, diff=T)
-  
+  diff_filtered <- DataFiltering(data, thresholds, diff_values=T)
+  diff_times <- TimeMatrix(times = times, ncol=d)
   a_bar_y_t <- t(nw_topo %*% t(data))
   a_bar_y_t <- a_bar_y_t[-N,]
   y_t <- data[-N,]
@@ -174,13 +204,13 @@ NOUfit <- function(nw_topo, times, data, thresholds){
   times <- seq(from = 0, by = delta_t, length.out = N)
   nw_data_bm <- matrix(rnorm(n = d*N, mean = 0, sd = sigma*sqrt(delta_t)), ncol = d)
   nw_data <- matrix(0, ncol=d, nrow=N)
-  nw_data[1,] <- nw_data_bm[1,]
+  nw_data[1,] <- nw_data_bm[1,] * sqrt(delta_t)
   
   nw_q <- 0.1*nw_topo
   diag(nw_q) <- 1
   
   for(index in 2:N){
-    nw_data[index,] <-  -(nw_q %*% nw_data[index-1,]) * (times[index]-times[index-1]) + nw_data_bm[index,]
+    nw_data[index,] <-  nw_data[index-1,] - (nw_q %*% nw_data[index-1,]) * (times[index]-times[index-1]) + nw_data_bm[index,]
   }
   
   plot(nw_data[1:300,1], type="l")
