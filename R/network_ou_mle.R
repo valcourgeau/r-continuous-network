@@ -98,7 +98,7 @@ NOUfit1D <- function(times, data, threshold){
     diff_times <- TimeMatrix(times = times, ncol=1, one_d=T)
 
     mle_estimate_up <- data[-N] * diff_filtered 
-    mle_estimate_down <- data[-N] * data[-N]^2
+    mle_estimate_down <- data[-N]^2 * diff_times
     return(-sum(mle_estimate_up) / sum(mle_estimate_down))
 }
 
@@ -106,10 +106,14 @@ NOUfit1D <- function(times, data, threshold){
 {
   source("R/network_generation.R")
   d <- 1 #dims
-  N <- 24*15000 #numbers of points
+  N <- 24*1500 #numbers of points
+  M <- 10 # number of simulations
   Y0 <- 1 #start point
+  delta_t <- 1/24
+  draw_n <- seq(from=8, to=N, by=1000)
+  mle_fit_example <- matrix(0, ncol=length(draw_n),
+                            nrow=M)
   
-  delta_t <- 1e-4
   
   sigma <- 0.1
   set.seed(42)
@@ -118,19 +122,45 @@ NOUfit1D <- function(times, data, threshold){
   nw_topo <- StdTopo(nw_topo)
   
   times <- seq(from = 0, by = delta_t, length.out = N)
-  nw_data_bm <- matrix(rnorm(n = d*N, mean = 0, sd = sigma*sqrt(delta_t)), ncol = d)
-  nw_data <- matrix(0, ncol=d, nrow=N)
-  nw_data[1,] <- nw_data_bm[1,]*sqrt(delta_t)
-  
-  nw_q <- 0.1*nw_topo
-  diag(nw_q) <- 1
-  
-  for(index in 2:N){
-    nw_data[index,] <-  nw_data[index-1,] - (nw_q %*% nw_data[index-1,]) * (times[index]-times[index-1]) + nw_data_bm[index,]
+  for(i in 1:M){
+    nw_data_bm <- matrix(rnorm(n = d*N, mean = 0, sd = sigma*sqrt(delta_t)), ncol = d)
+    nw_data <- matrix(0, ncol=d, nrow=N)
+    nw_data[1,] <- nw_data_bm[1,]*sqrt(delta_t)
+    
+    nw_q <- 0.1*nw_topo
+    diag(nw_q) <- 1
+    
+    for(index in 2:N){
+      nw_data[index,] <-  nw_data[index-1,] - (nw_q %*% nw_data[index-1,]) * (times[index]-times[index-1]) + nw_data_bm[index,]
+    }
+    
+    #plot(nw_data[1:300,1], type="l")
+    
+    j <- 0
+    for(n_temp in draw_n){
+      mle_fit_example[i,j] <- NOUfit1D(times = times[1:n_temp], data = nw_data[1:n_temp], threshold = 5)
+      j <- j + 1
+    }
   }
   
-  plot(nw_data[1:300,1], type="l")
-  NOUfit1D(times = times, data = nw_data, threshold = 5)
+  plot(draw_n[-length(draw_n)], colMeans(mle_fit_example[,-length(draw_n)]), 
+       xlab="Sample size", ylab="1D MLE", main="1D MLE as sample size",
+       ylim=c(0,2), type="l", col="red")  
+  lines(draw_n[-length(draw_n)], apply(mle_fit_example[,-length(draw_n)],
+                                      MARGIN = 2, 
+                                      FUN = function(x){quantile(x,0.95)}), 
+       xlab="Sample size", ylab="1D MLE", main="1D MLE as sample size",
+       ylim=c(0,2), type="l", lty=2, col="red") 
+  lines(draw_n[-length(draw_n)], apply(mle_fit_example[,-length(draw_n)],
+                                       MARGIN = 2, 
+                                       FUN = function(x){quantile(x,0.05)}), 
+        xlab="Sample size", ylab="1D MLE", main="1D MLE as sample size",
+        ylim=c(0,2), type="l", lty=2, col="red") 
+  
+  for(i in 1:M){
+    lines(draw_n[-length(draw_n)], mle_fit_example[i,-length(draw_n)], 
+          col=rgb(red = 0, green = 0, blue = 0, alpha = 0.02))  
+  }
 }
 
 
