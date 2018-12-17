@@ -1,3 +1,5 @@
+source("R/package_to_load.R")
+
 ### Functions to compute cts-time NAR-equivalent MLE and drift MLE
 
 EnsureTopo <- function(nw_topo){
@@ -84,7 +86,6 @@ TimeMatrix <- function(times, ncol, one_d=F){
 times <- c(1,2,4,7,11)
 TimeMatrix(times, ncol = 2)
 TimeMatrix(times, ncol = 2)
-
 
 NOUfit1D <- function(times, data, threshold){
     N <- length(data)
@@ -194,7 +195,7 @@ NOUfit <- function(nw_topo, times, data, thresholds){
   a_bar_y_t <- a_bar_y_t[-N,]
   y_t <- data[-N,]
 
-  wide_mle_xi <- - matrix(c(
+  wide_mle_xi <- matrix(c(
       sum(a_bar_y_t^2*diff_times), sum(a_bar_y_t*y_t*diff_times),
       sum(a_bar_y_t*y_t*diff_times), sum(y_t^2*diff_times)
     ), ncol=2)
@@ -205,7 +206,7 @@ NOUfit <- function(nw_topo, times, data, thresholds){
   
   #return(solve(a = wide_mle_xi, b = wide_mle_c_filtered))
   results <- list("MLE_wide"=
-                    as.vector(solve(a = wide_mle_xi, b = wide_mle_c_filtered)))
+                    -as.vector(solve(a = wide_mle_xi, b = wide_mle_c_filtered)))
   
   nw_topo <- results[["MLE_wide"]][1] * nw_topo
   diag(nw_topo) <- results[["MLE_wide"]][2]
@@ -220,46 +221,160 @@ NOUfit <- function(nw_topo, times, data, thresholds){
 {
   source("R/network_generation.R")
   d <- 5 #dims
-  N <- 24*15 #numbers of points
+  N <- 24*1500 #numbers of points
+  M <- 10 # number of simulations
   Y0 <- 1 #start point
-  
-  delta_t <- 1e-2
+  delta_t <- 1/24
+  draw_n <- seq(from=8, to=N, by=1000)
+  mle_fit_example <- rep(0, length(draw_n)*M*2)
+  mle_fit_example <- array(data = mle_fit_example,
+                           dim=c(M,length(draw_n),2))
   
   sigma <- 0.1
   set.seed(42)
   nw_topo <- genRdmAssymetricGraphs(d = d, p.link = 0.25,
-                         theta_1 = 1, theta_2 = 0)
+                                    theta_1 = 1, theta_2 = 0)
   nw_topo <- StdTopo(nw_topo)
   
   times <- seq(from = 0, by = delta_t, length.out = N)
+  thresholds <- rep(0, d)
+  for(i in 1:M){
+    nw_data_bm <- matrix(rnorm(n = d*N, mean = 0, sd = sigma*sqrt(delta_t)), ncol = d)
+    nw_data <- matrix(0, ncol=d, nrow=N)
+    nw_data[1,] <- nw_data_bm[1,]*sqrt(delta_t)
+    
+    nw_q <- 0.1*nw_topo
+    diag(nw_q) <- 1
+    
+    for(index in 2:N){
+      nw_data[index,] <-  nw_data[index-1,] - (nw_q %*% nw_data[index-1,]) * (times[index]-times[index-1]) + nw_data_bm[index,]
+    }
+    
+    #plot(nw_data[1:300,1], type="l")
+    
+    j <- 0
+    for(n_temp in draw_n){
+      res <- NOUfit(nw_topo = nw_topo, times = times[1:n_temp],
+                    data = nw_data[1:n_temp,], thresholds = thresholds)
+      mle_fit_example[i,j,] <- res$MLE_wide
+
+      j <- j + 1
+    }
+  }
+  mle_true <- c(0.1, 1.0)
+  par(mfrow=(c(1,2)))
+  index_mle_param <- 1
+  
+  plot(draw_n[-length(draw_n)], colMeans(mle_fit_example[,-length(draw_n),index_mle_param])
+       - mle_true[index_mle_param], main="First para MLE / Error and Empirical var")
+  abline(h=0)
+  lines(draw_n[-length(draw_n)], colMeans((mle_fit_example[,-length(draw_n),index_mle_param]
+         -colMeans(mle_fit_example[,-length(draw_n),index_mle_param]))^2),
+        col="red", lty=2, lwd=2)
+  
+  index_mle_param <- 2
+  
+  plot(draw_n[-length(draw_n)], colMeans(mle_fit_example[,-length(draw_n),index_mle_param])
+       - mle_true[index_mle_param], main="First para MLE / Error and Var", ylim=c(-0.01,0.05))
+  abline(h=0)
+  lines(draw_n[-length(draw_n)], colMeans((mle_fit_example[,-length(draw_n),index_mle_param]
+                                           -colMeans(mle_fit_example[,-length(draw_n),index_mle_param]))^2),
+        col="red", lty=2, lwd=2)
+}
+
+rep.col <- function(matrix, n_copy){
+  n_row <- dim(matrix)[1] 
+  return(matrix(apply(matrix, MARGIN = 2,
+                 function(x){replicate(n_copy,x)}), nrow=n_row))
+}
+
+# Example
+rep.col(matrix(1:9, nrow=3), 2)
+rep.col(matrix(1:6, nrow=2), 3)
+
+rep.mat <- function(matrix, n_copy){
+  return(matrix(rep(matrix, n_copy), nrow=nrow(matrix)))
+}
+
+# Example
+rep.mat(matrix(1:9, nrow=3), 2)
+rep.mat(matrix(1:6, nrow=2), 3)
+
+NOUmatrix <- function(nw_topo, times, data, thresholds){
+  # TODO check sum with difference time series
+  
+  # Check 
+  nw_topo <- StdTopo(nw_topo = nw_topo)
+  nw_test <- nw_topo
+  diag(nw_test) <- 1 
+  if(max(Re(eigen(nw_test)$values)) <= 0){
+    stop("Q matrix should be positive definite.")
+  }
+  
+  remove(nw_test) # delete test matrix
+  
+  d <- ncol(data)
+  N <- nrow(data)
+  
+  if(length(thresholds) != d){
+    stop('Wrong dimension between data and thresholds.')
+  }
+  if(length(times) != N){
+    stop('Wrong dimensions between data and times.')
+  }
+  
+  diff_times <- TimeMatrix(times = times, ncol = d)
+  diff_filtered <- DataFiltering(data = data, diff_values = T,
+                                 thresholds = thresholds)
+  a_n <- colSums(rep.col(data[-N,], d) * 
+                   rep.mat(diff_filtered, d))
+  k_n <- matrix(colSums(rep.col(data[-N,], n_copy = d) * 
+                         rep.mat(data[-N,], n_copy = d) * 
+                         rep.col(diff_times[-N,], d)), d)
+
+  a_n <- matrix(a_n, nrow=d)
+  #s_n <- rep.mat(matrix = solve(k_n), n_copy = d)
+  return(-apply(X = a_n, MARGIN = 2, function(x){solve(a = k_n, b = x)}))
+}
+
+# Example
+{
+  source("R/network_generation.R")
+  d <- 5 #dims
+  N <- 24*1500 #numbers of points
+  M <- 10 # number of simulations
+  Y0 <- 1 #start point
+  delta_t <- 1/24
+  draw_n <- seq(from=8, to=N, by=1000)
+  mle_fit_example <- rep(0, length(draw_n)*M*2)
+  mle_fit_example <- array(data = mle_fit_example,
+                           dim=c(M,length(draw_n),2))
+  
+  sigma <- 0.1
+  set.seed(42)
+  nw_topo <- genRdmAssymetricGraphs(d = d, p.link = 0.25,
+                                    theta_1 = 1, theta_2 = 0)
+  nw_topo <- StdTopo(nw_topo)
+  
+  times <- seq(from = 0, by = delta_t, length.out = N)
+  thresholds <- rep(0, d)
+
   nw_data_bm <- matrix(rnorm(n = d*N, mean = 0, sd = sigma*sqrt(delta_t)), ncol = d)
   nw_data <- matrix(0, ncol=d, nrow=N)
-  nw_data[1,] <- nw_data_bm[1,] * sqrt(delta_t)
+  nw_data[1,] <- nw_data_bm[1,]*sqrt(delta_t)
   
   nw_q <- 0.1*nw_topo
   diag(nw_q) <- 1
-  
+    
   for(index in 2:N){
     nw_data[index,] <-  nw_data[index-1,] - (nw_q %*% nw_data[index-1,]) * (times[index]-times[index-1]) + nw_data_bm[index,]
   }
-  
+    
   plot(nw_data[1:300,1], type="l")
-  
-  #nw_data <- Y0 + apply(X = nw_data, MARGIN = 2, FUN = function(x){cumsum(x)})
   thresholds <- rep(10, d)
-  
-  # Removing n.horizon points
-  n.horizon <- 15
-  nw_data_all <- nw_data
-  nw_data <- nw_data[-((N-n.horizon+1):N),]
-  times <- times[-((N-n.horizon+1):N)]
-  N_all <- N
-  N <- N-n.horizon
-  
-  res <- NOUfit(nw_topo = nw_topo, times = times,
-                data = nw_data, thresholds = thresholds)
-  res$MLE_wide
+  NOUmatrix(nw_topo = nw_q, times = times, data = nw_data, thresholds = thresholds)
 }
+
 
 library("Matrix")
 #set.seed(42)

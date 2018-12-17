@@ -9,7 +9,8 @@ pckgs_to_load <- c(
   "visNetwork",
   "magrittr",
   "mlVAR",
-  "graphicalVAR"
+  "graphicalVAR",
+  "magrittr"
 )
 
 check.packages <- function(pkg){
