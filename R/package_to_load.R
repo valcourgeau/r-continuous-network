@@ -10,7 +10,10 @@ pckgs_to_load <- c(
   "magrittr",
   "mlVAR",
   "graphicalVAR",
-  "magrittr"
+  "magrittr",
+  "RTransferEntropy",
+  "EntropyEstimation",
+  "CompQuadForm"
 )
 
 check.packages <- function(pkg){

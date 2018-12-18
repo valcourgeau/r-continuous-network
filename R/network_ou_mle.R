@@ -334,6 +334,9 @@ NOUmatrix <- function(nw_topo, times, data, thresholds){
 
   a_n <- matrix(a_n, nrow=d)
   #s_n <- rep.mat(matrix = solve(k_n), n_copy = d)
+  
+  
+  # TODO change with LU decomposition
   return(-apply(X = a_n, MARGIN = 2, function(x){solve(a = k_n, b = x)}))
 }
 
@@ -346,9 +349,7 @@ NOUmatrix <- function(nw_topo, times, data, thresholds){
   Y0 <- 1 #start point
   delta_t <- 1/24
   draw_n <- seq(from=8, to=N, by=1000)
-  mle_fit_example <- rep(0, length(draw_n)*M*2)
-  mle_fit_example <- array(data = mle_fit_example,
-                           dim=c(M,length(draw_n),2))
+
   
   sigma <- 0.1
   set.seed(42)
@@ -372,6 +373,35 @@ NOUmatrix <- function(nw_topo, times, data, thresholds){
     
   plot(nw_data[1:300,1], type="l")
   thresholds <- rep(10, d)
-  NOUmatrix(nw_topo = nw_q, times = times, data = nw_data, thresholds = thresholds)
+  mle_matrix_test <- NOUmatrix(nw_topo = nw_q, times = times, data = nw_data, thresholds = thresholds)
+  
+  
+  # repeated testing
+  M <- 1000 # number of simulations
+  sigma <- 0.1
+  set.seed(42)
+  nw_topo <- genRdmAssymetricGraphs(d = d, p.link = 0.25,
+                                    theta_1 = 1, theta_2 = 0)
+  nw_topo <- StdTopo(nw_topo)
+  
+  times <- seq(from = 0, by = delta_t, length.out = N)
+  thresholds <- rep(10, d)
+  mle_mat_example <- matrix(0, ncol=d^2, nrow=M)
+  for(i in 1:M){
+    nw_data_bm <- matrix(rnorm(n = d*N, mean = 0, sd = sigma*sqrt(delta_t)), ncol = d)
+    nw_data <- matrix(0, ncol=d, nrow=N)
+    nw_data[1,] <- nw_data_bm[1,]*sqrt(delta_t)
+    
+    nw_q <- 3*nw_topo
+    diag(nw_q) <- 10
+    
+    for(index in 2:N){
+      nw_data[index,] <-  nw_data[index-1,] - (nw_q %*% nw_data[index-1,]) * (times[index]-times[index-1]) + nw_data_bm[index,]
+    }
+    
+    mle_mat_example[i,] <- as.vector(
+      NOUmatrix(nw_topo = nw_q, times = times, data = nw_data, thresholds = thresholds)
+    )
+  }
 }
 
