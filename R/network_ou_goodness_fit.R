@@ -5,6 +5,7 @@ source("R/package_to_load.R")
 # based on Renyi entropy and statistics (Morales et al. (2000))
 
 NOUGof <- function(theta, theta_true, data, times, quiet=F){
+  # TODO test computation of \Sigma with non Id case
   N <- nrow(data)
   d <- ncol(data)
   diff_times <- TimeMatrix(times, d)
@@ -25,7 +26,6 @@ NOUGof <- function(theta, theta_true, data, times, quiet=F){
   first <- 1-first$Qq
   last <- suppressWarnings(imhof(q=rv_value, lambda = eigen_vals)$Qq)
   
-
   temp <- min(first, last)
   last <- max(first, last)
   first <- max(temp, 0.0) 
@@ -107,5 +107,6 @@ NOUGof <- function(theta, theta_true, data, times, quiet=F){
   par(mfrow=(c(1,2)))
   index_mle_param <- 1
   
-  ans <- NOUGof(theta = mle_matrix_test, theta_true = nw_q, data=nw_data, times =times, quiet = T)
+  ans <- NOUGof(theta=mle_matrix_test, theta_true=nw_q, data=nw_data, times=times, quiet=T)
+  ans
 }
