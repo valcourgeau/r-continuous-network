@@ -38,7 +38,7 @@ adj_grid <- as_adjacency_matrix(graph = graph_grid)
 
 setwd("../Nodal_TS/")
 #n_cols <- 1200
-load_nodes <- read.csv(file = "load_signal.csv", nrows = 10000)
+load_data <- read.csv(file = "load_signal.csv", nrows = 10000)
 colnames(load_nodes)[1] <- "ds"
 head(load_nodes)
 
