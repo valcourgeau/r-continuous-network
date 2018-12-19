@@ -48,6 +48,7 @@ NOUGof <- function(theta, theta_true, data, times, quiet=F){
   test_values <- list()
   test_values[["lower"]] <- first
   test_values[["upper"]] <-last
+  test_values[["p.value"]] <- 1-abs(last-first)
   test_values[["rating"]] <-as.character(probability)
   test_values[["abs.error"]] <-abserr
                      

@@ -105,8 +105,10 @@ prophet:::plot(df_prophet)
 
 # STL
 library("stats")
-ts.x1 <- ts(frequency = 365*24, load_nodes$X1)
+ts.x1 <- ts(frequency = 180*24, load_data$X1)
 ts.x1.stl <- stl(ts.x1, s.window = "per")
-plot(ts.x1.stl)
 plot(ts.x1.stl$time.series[1:1000,3], type="l")
 abline(v=(1:300)*7*24)
+
+NOUfit1D(times = 1:length(load_data$X1), 
+         data = ts.x1.stl$time.series[,3], threshold = 0.6)

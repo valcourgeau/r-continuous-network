@@ -13,7 +13,8 @@ pckgs_to_load <- c(
   "magrittr",
   "RTransferEntropy",
   "EntropyEstimation",
-  "CompQuadForm"
+  "CompQuadForm",
+  "JumpTest"
 )
 
 check.packages <- function(pkg){
