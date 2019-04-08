@@ -58,4 +58,5 @@ FullyConnectedNetwork <- function(d, theta_1, theta_2, directed=F){
   return(net_temp)
 }
 
-FullyConnectedNetwork(10, 1, 2, T)
+FullyConnectedNetwork(10, 1, 2, F)
+
