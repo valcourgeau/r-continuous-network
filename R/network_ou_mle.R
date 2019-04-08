@@ -25,7 +25,7 @@ StdTopo <- function(nw_topo){
   std_coeff <- rowSums(nw_topo)
   std_coeff[std_coeff == 0] <- 1
 
-    return(nw_topo/std_coeff)
+  return(nw_topo/std_coeff)
 }
 
 # Example
