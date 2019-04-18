@@ -66,3 +66,22 @@ JumpTest1D <- function(data, method){
   plot(nw_data[,1], type='l')
   JumpTest1D(data = nw_data, method = "BNS")
 }
+
+
+#' Returns an offset diagonal matrix
+
+AugmentedDiag <- function(d, offset){
+  assertthat::assert_that(d > offset)
+  
+  mat_temp <- cbind(
+    matrix(0, nrow=d, ncol=abs(offset)),
+    rbind(diag(d-abs(offset)), matrix(0, ncol=d-abs(offset), nrow=abs(offset)))
+  )
+  if(offset < 0){
+    return(t(mat_temp))
+  }else{
+    return(mat_temp)
+  }
+}
+
+AugmentedDiag(d=10, -2)

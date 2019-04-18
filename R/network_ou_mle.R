@@ -1,4 +1,6 @@
-source("R/package_to_load.R")
+source("package_to_load.R")
+LOAD_EXAMPLES <- FALSE
+
 
 ### Functions to compute cts-time NAR-equivalent MLE and drift MLE
 
@@ -104,8 +106,9 @@ NOUfit1D <- function(times, data, threshold){
 }
 
 # Example
+if(LOAD_EXAMPLES)
 {
-  source("R/network_generation.R")
+  source("network_generation.R")
   d <- 1 #dims
   N <- 24*1500 #numbers of points
   M <- 10 # number of simulations
@@ -216,10 +219,10 @@ NOUfit <- function(nw_topo, times, data, thresholds){
 } 
 
 # Example
-#source("R/network_generation.R")
-
+#source("network_generation.R")
+if(LOAD_EXAMPLES)
 {
-  source("R/network_generation.R")
+  source("network_generation.R")
   d <- 5 #dims
   N <- 24*1500 #numbers of points
   M <- 10 # number of simulations
@@ -335,14 +338,14 @@ NOUmatrix <- function(nw_topo, times, data, thresholds){
   a_n <- matrix(a_n, nrow=d)
   #s_n <- rep.mat(matrix = solve(k_n), n_copy = d)
   
-  
   # TODO change with LU decomposition
   return(-apply(X = a_n, MARGIN = 2, function(x){solve(a = k_n, b = x)}))
 }
 
 # Example
+if(LOAD_EXAMPLES)
 {
-  source("R/network_generation.R")
+  source("network_generation.R")
   d <- 5 #dims
   N <- 24*1500 #numbers of points
   M <- 10 # number of simulations
