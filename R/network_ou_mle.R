@@ -11,15 +11,17 @@ EnsureTopo <- function(nw_topo){
 }
 
 # Example
-nw_topo <- c(2,1,1,
-             0,2,3,
-             0,0,-1)
-nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
-nw_topo
-EnsureTopo(nw_topo = nw_topo)
-
-test_topo <- matrix(1, ncol=3, nrow=3)
-EnsureTopo(nw_topo = test_topo)
+if(LOAD_EXAMPLES){
+  nw_topo <- c(2,1,1,
+               0,2,3,
+               0,0,-1)
+  nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
+  nw_topo
+  EnsureTopo(nw_topo = nw_topo)
+  
+  test_topo <- matrix(1, ncol=3, nrow=3)
+  EnsureTopo(nw_topo = test_topo)
+}
 
 StdTopo <- function(nw_topo){
   nw_topo <- EnsureTopo(nw_topo = nw_topo)
@@ -31,15 +33,16 @@ StdTopo <- function(nw_topo){
 }
 
 # Example
-nw_topo <- c(2,1,1,
-             0,2,3,
-             0,0,1)
-nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
-StdTopo(nw_topo = nw_topo)
-
-test_topo <- matrix(1, ncol=3, nrow=3)
-StdTopo(nw_topo = test_topo)
-
+if(LOAD_EXAMPLES){
+  nw_topo <- c(2,1,1,
+               0,2,3,
+               0,0,1)
+  nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
+  StdTopo(nw_topo = nw_topo)
+  
+  test_topo <- matrix(1, ncol=3, nrow=3)
+  StdTopo(nw_topo = test_topo)
+}
 DataFiltering <- function(data, thresholds, diff_values=F, one_d=F){
   # Shall we have the first or second point when diff_values=F?
   filtered_data <- diff(data)
@@ -65,6 +68,7 @@ DataFiltering <- function(data, thresholds, diff_values=F, one_d=F){
 }
 
 # Example
+if(LOAD_EXAMPLES){
 data <- c(1,2,5,
           1,3,6,
           1,4,7)
@@ -72,6 +76,7 @@ data <- t(matrix(data, ncol=3))
 data
 DataFiltering(data, c(2,3,6))
 DataFiltering(data, c(2,3,6), diff = T)
+}
 
 TimeMatrix <- function(times, ncol, one_d=F){
   # remove one_d just usel ncol

@@ -1,3 +1,5 @@
+LOAD_EXAMPLES <- FALSE
+
 # Functions to help performs technical tasks such as:
 #   - Integration with discrete data;
 #   - Jump tests
@@ -14,7 +16,7 @@ JumpTest1D <- function(data, method){
 
 # Example
 
-{
+if(LOAD_EXAMPLES){
   source("network_generation.R")
   d <- 5 #dims
   N <- 24*1500 #numbers of points

@@ -40,11 +40,11 @@ CornerGrid <- function(top_x, top_y, n_x, n_y, scale='exp'){
       if(n_x %% 2 == 0){
         tmp_x <- c(-tmp_x, tmp_x)
       }else{
-        tmp_x <- c(-tmp_x, 0, tmp_x)
+        tmp_x <- c(-tmp_x, 1e-10, tmp_x)
       }
     }else{
       if(scale == 'linear'){
-        tmp_x <- seq(-seq_y[i], seq_y[i], length.out = round(n_x))
+        tmp_x <- seq(-seq_y[i]*0.99, seq_y[i]*0.99, length.out = round(n_x))
       }
     }
     

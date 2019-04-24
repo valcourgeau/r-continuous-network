@@ -35,18 +35,21 @@ LatticeNetwork <- function(d, theta_1, theta_2, diag.connections=F, directed=F){
   CheckThetas(theta_1, theta_2)
   
   if(diag.connections) stop('NotImplementedError')
+  if(directed) stop('NotImplementedError')
   
-  net_matrix <- matrix(0, ncol = d, nrow = d)
-  net_temp <- diag(d-1)
-  net_temp <- cbind(rep(0, d-1), net_temp)
-  net_temp <- rbind(net_temp, rep(0, d))
-  net_matrix <- net_matrix + net_temp
-  if(directed){
-    net_matrix <- net_matrix - t(net_temp)
-  }else{
-    net_matrix <- net_matrix + t(net_temp)
-  }
+  # net_matrix <- matrix(0, ncol = d, nrow = d)
+  # net_temp <- diag(d-1)
+  # net_temp <- cbind(rep(0, d-1), net_temp)
+  # net_temp <- rbind(net_temp, rep(0, d))
+  # net_matrix <- net_matrix + net_temp
+  # if(directed){
+  #   net_matrix <- net_matrix - t(net_temp)
+  # }else{
+  #   net_matrix <- net_matrix + t(net_temp)
+  # }
   
+  #net_matrix <- ngspatial::adjacency.matrix(d)
+  net_matrix <- copCAR::adjacency.matrix(d)
   net_matrix <- net_matrix / rowSums(abs(net_matrix))
   net_matrix <- theta_1 * net_matrix
   diag(net_matrix) <- theta_2
