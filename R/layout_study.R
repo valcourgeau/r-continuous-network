@@ -43,6 +43,8 @@ f_network <- PolymerNetwork
 PLOT_IT <- FALSE
 
 sim_res <- list()
+sim_tmp <- list()
+
 
 total <- nrow(theta_grid)
 # create progress bar
@@ -69,7 +71,7 @@ for(index_path in (n_x+1):nrow(theta_grid)){
                                                        data = x, thresholds = rep(10, d))}))
   res_mles <- vapply(res_nou, function(x){x$MLE_wide}, c(1,1)) %>% t
   
-  sim_res[[index_path]] <- res_mles
+  sim_tmp[[index_path]] <- res_mles
   
   if(PLOT_IT){
     vioplot(res_mles[,1], res_mles[,2], names=c(expression(theta[1]), expression(theta[2])))
@@ -82,6 +84,7 @@ for(index_path in (n_x+1):nrow(theta_grid)){
 }
 close(pb)
 
+sim_res$sims <- sim_tmp
 sim_res$N <- N
 sim_res$delta_t <- delta_t
 sim_res$n_x <- n_x
@@ -128,9 +131,57 @@ contour(contour_mat[-n_y,], xlab = 't2', ylab='t1')
 
 
 
+polym <- rlist::list.load('Polymer_4_4.RData')
+lat <- rlist::list.load('Lattice_4_4.RData')
+fc <- rlist::list.load('FullyConnected_4_4.RData')
+
+sim_res_temp <- polym
+par(mfrow=c(6,2))
+
+sim_mean <- matrix(0, ncol=2, nrow=(n_x-1)*n_y)
+sim_bias <- matrix(0, ncol=2, nrow=(n_x-1)*n_y)
+sim_bias_sd <- matrix(0, ncol=2, nrow=(n_x-1)*n_y)
+sim_bias_percent <- matrix(0, ncol=2, nrow=(n_x-1)*n_y)
+sim_sd <- matrix(0, ncol=2, nrow=(n_x-1)*n_y)
+
+theta_mat <- as.matrix(theta_grid)
+
+for(index in (n_x+1):nrow(theta_mat)){
+  sim_mean[index-n_x,] <- apply(as.matrix(sim_res_temp[[index]]), FUN = mean, MARGIN = 2)
+  sim_bias[index-n_x,1:2] <- apply(as.matrix(sim_res_temp[[index]]) - 
+                                matrix(rep(theta_mat[index,1:2], times=nrow(as.matrix(sim_res_temp[[index]]))), byrow = T, ncol=2), mean, MARGIN = 2)
+  sim_bias_sd[index-n_x,1:2] <- apply(as.matrix(sim_res_temp[[index]]) - 
+                                     matrix(rep(theta_mat[index,1:2], times=nrow(as.matrix(sim_res_temp[[index]]))), byrow = T, ncol=2), sd, MARGIN = 2)
+    # abs(sim_mean[index-n_x,1:2] - theta_mat[index,1:2])
+  sim_bias_percent[index-n_x,] <- sim_bias[index-n_x,1:2] / theta_mat[index,] * 100
+  sim_sd[index-n_x,] <- apply(as.matrix(sim_res_temp[[index]]), FUN = function(x){sd(x)}, MARGIN = 2)
+}
+
+par(mar=c(4, 5, 1, 1), mfrow=c(3,2) )
+# layout(matrix(c(1,3,2,4,5,6), 3, 2, byrow = TRUE))
+
+# plot(theta_grid$x[order(theta_grid$x[-(1:n_x)])], sim_bias_percent[,1][order(theta_grid$x[-(1:n_x)])], 
+#      ylab = 'Relative bias (in %)', xlab=expression(theta[1]), cex.lab=1.5)
+# plot(theta_grid$y[order(theta_grid$y[-(1:n_x)])], sim_bias_percent[,2][order(theta_grid$y[-(1:n_y)])], 
+#      ylab = 'Relative bias (in %)', xlab=expression(theta[2]), cex.lab=1.5)
+
+plot(theta_grid$x[order(theta_grid$x[-(1:n_x)])], sim_sd[,1][order(theta_grid$x[-(1:n_x)])], 
+     ylab = 'MC std dev', xlab=expression(theta[1]), cex.lab=1.5)
+plot(theta_grid$y[order(theta_grid$y[-(1:n_x)])], sim_sd[,2][order(theta_grid$y[-(1:n_y)])], 
+     ylab = 'MC std dev', xlab=expression(theta[2]), cex.lab=1.5)
 
 
+plot(theta_grid$x[order(theta_grid$x[-(1:n_x)])], sim_bias[,1][order(theta_grid$x[-(1:n_x)])], 
+     ylab = 'Bias', xlab=expression(theta[1]), cex.lab=1.5)
+plot(theta_grid$y[order(theta_grid$y[-(1:n_x)])], sim_bias[,2][order(theta_grid$y[-(1:n_y)])], 
+     ylab = 'Bias', xlab=expression(theta[2]), cex.lab=1.5)
 
+
+contour_mat <- matrix(0, ncol=n_x, nrow=n_y)
+for(i in 1:(n_y-1)){
+  contour_mat[i,] <- sim_bias[((i-1)*n_x+1):(i*n_x),2]
+}
+contour(contour_mat[-n_y,], xlab = 't2', ylab='t1')
 
 
 

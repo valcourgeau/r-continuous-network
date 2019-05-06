@@ -1,6 +1,4 @@
-source("package_to_load.R")
-LOAD_EXAMPLES <- FALSE
-
+#source("R/package_to_load.R")
 
 ### Functions to compute cts-time NAR-equivalent MLE and drift MLE
 
@@ -11,17 +9,15 @@ EnsureTopo <- function(nw_topo){
 }
 
 # Example
-if(LOAD_EXAMPLES){
-  nw_topo <- c(2,1,1,
-               0,2,3,
-               0,0,-1)
-  nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
-  nw_topo
-  EnsureTopo(nw_topo = nw_topo)
-  
-  test_topo <- matrix(1, ncol=3, nrow=3)
-  EnsureTopo(nw_topo = test_topo)
-}
+nw_topo <- c(2,1,1,
+             0,2,3,
+             0,0,-1)
+nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
+nw_topo
+EnsureTopo(nw_topo = nw_topo)
+
+test_topo <- matrix(1, ncol=3, nrow=3)
+EnsureTopo(nw_topo = test_topo)
 
 StdTopo <- function(nw_topo){
   nw_topo <- EnsureTopo(nw_topo = nw_topo)
@@ -29,20 +25,19 @@ StdTopo <- function(nw_topo){
   std_coeff <- rowSums(nw_topo)
   std_coeff[std_coeff == 0] <- 1
 
-  return(nw_topo/std_coeff)
+    return(nw_topo/std_coeff)
 }
 
 # Example
-if(LOAD_EXAMPLES){
-  nw_topo <- c(2,1,1,
-               0,2,3,
-               0,0,1)
-  nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
-  StdTopo(nw_topo = nw_topo)
-  
-  test_topo <- matrix(1, ncol=3, nrow=3)
-  StdTopo(nw_topo = test_topo)
-}
+nw_topo <- c(2,1,1,
+             0,2,3,
+             0,0,1)
+nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
+StdTopo(nw_topo = nw_topo)
+
+test_topo <- matrix(1, ncol=3, nrow=3)
+StdTopo(nw_topo = test_topo)
+
 DataFiltering <- function(data, thresholds, diff_values=F, one_d=F){
   # Shall we have the first or second point when diff_values=F?
   filtered_data <- diff(data)
@@ -68,7 +63,6 @@ DataFiltering <- function(data, thresholds, diff_values=F, one_d=F){
 }
 
 # Example
-if(LOAD_EXAMPLES){
 data <- c(1,2,5,
           1,3,6,
           1,4,7)
@@ -76,7 +70,6 @@ data <- t(matrix(data, ncol=3))
 data
 DataFiltering(data, c(2,3,6))
 DataFiltering(data, c(2,3,6), diff = T)
-}
 
 TimeMatrix <- function(times, ncol, one_d=F){
   # remove one_d just usel ncol
@@ -111,9 +104,8 @@ NOUfit1D <- function(times, data, threshold){
 }
 
 # Example
-if(LOAD_EXAMPLES)
 {
-  source("network_generation.R")
+  source("R/network_generation.R")
   d <- 1 #dims
   N <- 24*1500 #numbers of points
   M <- 10 # number of simulations
@@ -224,10 +216,10 @@ NOUfit <- function(nw_topo, times, data, thresholds){
 } 
 
 # Example
-#source("network_generation.R")
-if(LOAD_EXAMPLES)
+#source("R/network_generation.R")
+
 {
-  source("network_generation.R")
+  source("R/network_generation.R")
   d <- 5 #dims
   N <- 24*1500 #numbers of points
   M <- 10 # number of simulations
@@ -343,14 +335,14 @@ NOUmatrix <- function(nw_topo, times, data, thresholds){
   a_n <- matrix(a_n, nrow=d)
   #s_n <- rep.mat(matrix = solve(k_n), n_copy = d)
   
+  
   # TODO change with LU decomposition
   return(-apply(X = a_n, MARGIN = 2, function(x){solve(a = k_n, b = x)}))
 }
 
 # Example
-if(LOAD_EXAMPLES)
 {
-  source("network_generation.R")
+  source("R/network_generation.R")
   d <- 5 #dims
   N <- 24*1500 #numbers of points
   M <- 10 # number of simulations

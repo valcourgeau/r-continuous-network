@@ -14,7 +14,8 @@ pckgs_to_load <- c(
   "RTransferEntropy",
   "EntropyEstimation",
   "CompQuadForm",
-  "JumpTest"
+  "JumpTest",
+  "parallel"
 )
 
 check.packages <- function(pkg){
