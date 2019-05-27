@@ -9,7 +9,7 @@ JumpTest1D <- function(data, method){
   # Wrapper of JumpTest::jumptestperiod
   # TODO diff or no diff for "Amed" or "Amin" tests
   
-  data <- apply(nw_data, MARGIN = 2, diff)
+  data <- apply(data, MARGIN = 2, diff)
   return(JumpTest::jumptestperiod(retmat = data,
                                   method = method))
 }

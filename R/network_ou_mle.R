@@ -1,5 +1,5 @@
 #source("R/package_to_load.R")
-
+CHECK_EXAMPLE <- FALSE
 ### Functions to compute cts-time NAR-equivalent MLE and drift MLE
 
 EnsureTopo <- function(nw_topo){
@@ -9,15 +9,17 @@ EnsureTopo <- function(nw_topo){
 }
 
 # Example
-nw_topo <- c(2,1,1,
-             0,2,3,
-             0,0,-1)
-nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
-nw_topo
-EnsureTopo(nw_topo = nw_topo)
-
-test_topo <- matrix(1, ncol=3, nrow=3)
-EnsureTopo(nw_topo = test_topo)
+if(CHECK_EXAMPLE){
+  nw_topo <- c(2,1,1,
+               0,2,3,
+               0,0,-1)
+  nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
+  nw_topo
+  EnsureTopo(nw_topo = nw_topo)
+  
+  test_topo <- matrix(1, ncol=3, nrow=3)
+  EnsureTopo(nw_topo = test_topo)
+}
 
 StdTopo <- function(nw_topo){
   nw_topo <- EnsureTopo(nw_topo = nw_topo)
@@ -29,14 +31,16 @@ StdTopo <- function(nw_topo){
 }
 
 # Example
-nw_topo <- c(2,1,1,
-             0,2,3,
-             0,0,1)
-nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
-StdTopo(nw_topo = nw_topo)
-
-test_topo <- matrix(1, ncol=3, nrow=3)
-StdTopo(nw_topo = test_topo)
+if(CHECK_EXAMPLE){
+  nw_topo <- c(2,1,1,
+               0,2,3,
+               0,0,1)
+  nw_topo <- matrix(nw_topo, ncol = 3, nrow = 3)
+  StdTopo(nw_topo = nw_topo)
+  
+  test_topo <- matrix(1, ncol=3, nrow=3)
+  StdTopo(nw_topo = test_topo)
+}
 
 DataFiltering <- function(data, thresholds, diff_values=F, one_d=F){
   # Shall we have the first or second point when diff_values=F?
@@ -63,13 +67,16 @@ DataFiltering <- function(data, thresholds, diff_values=F, one_d=F){
 }
 
 # Example
-data <- c(1,2,5,
-          1,3,6,
-          1,4,7)
-data <- t(matrix(data, ncol=3))
-data
-DataFiltering(data, c(2,3,6))
-DataFiltering(data, c(2,3,6), diff = T)
+if(CHECK_EXAMPLE){
+  
+  data <- c(1,2,5,
+            1,3,6,
+            1,4,7)
+  data <- t(matrix(data, ncol=3))
+  data
+  DataFiltering(data, c(2,3,6))
+  DataFiltering(data, c(2,3,6), diff = T)
+}
 
 TimeMatrix <- function(times, ncol, one_d=F){
   # remove one_d just usel ncol
@@ -83,9 +90,11 @@ TimeMatrix <- function(times, ncol, one_d=F){
 }
 
 # Example
-times <- c(1,2,4,7,11)
-TimeMatrix(times, ncol = 2)
-TimeMatrix(times, ncol = 2)
+if(CHECK_EXAMPLE){
+  times <- c(1,2,4,7,11)
+  TimeMatrix(times, ncol = 2)
+  TimeMatrix(times, ncol = 2)
+}
 
 NOUfit1D <- function(times, data, threshold){
     N <- length(data)
@@ -104,7 +113,7 @@ NOUfit1D <- function(times, data, threshold){
 }
 
 # Example
-{
+if(CHECK_EXAMPLE){
   source("R/network_generation.R")
   d <- 1 #dims
   N <- 24*1500 #numbers of points
@@ -192,7 +201,7 @@ NOUfit <- function(nw_topo, times, data, thresholds){
   diff_filtered <- DataFiltering(data, thresholds, diff_values=T)
   diff_times <- TimeMatrix(times = times, ncol=d)
   a_bar_y_t <- t(nw_topo %*% t(data))
-  a_bar_y_t <- a_bar_y_t[-N,]
+  a_bar_y_t <- a_bar_y_t[-N,] # this is for cadlag processes
   y_t <- data[-N,]
 
   wide_mle_xi <- matrix(c(
@@ -218,7 +227,7 @@ NOUfit <- function(nw_topo, times, data, thresholds){
 # Example
 #source("R/network_generation.R")
 
-{
+if(CHECK_EXAMPLE){
   source("R/network_generation.R")
   d <- 5 #dims
   N <- 24*1500 #numbers of points
@@ -341,7 +350,7 @@ NOUmatrix <- function(nw_topo, times, data, thresholds){
 }
 
 # Example
-{
+if(CHECK_EXAMPLE){
   source("R/network_generation.R")
   d <- 5 #dims
   N <- 24*1500 #numbers of points

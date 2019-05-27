@@ -130,7 +130,7 @@ for(i in 1:(n_y-1)){
 contour(contour_mat[-n_y,], xlab = 't2', ylab='t1')
 
 
-
+setwd('~/GitHub/r-continuous-network/R/')
 polym <- rlist::list.load('Polymer_4_4.RData')
 lat <- rlist::list.load('Lattice_4_4.RData')
 fc <- rlist::list.load('FullyConnected_4_4.RData')
@@ -157,6 +157,8 @@ for(index in (n_x+1):nrow(theta_mat)){
   sim_sd[index-n_x,] <- apply(as.matrix(sim_res_temp[[index]]), FUN = function(x){sd(x)}, MARGIN = 2)
 }
 
+plot(theta_grid[17:256,1][order(theta_grid[17:256,1])], sim_bias[,1])
+
 par(mar=c(4, 5, 1, 1), mfrow=c(3,2) )
 # layout(matrix(c(1,3,2,4,5,6), 3, 2, byrow = TRUE))
 
@@ -175,6 +177,66 @@ plot(theta_grid$x[order(theta_grid$x[-(1:n_x)])], sim_bias[,1][order(theta_grid$
      ylab = 'Bias', xlab=expression(theta[1]), cex.lab=1.5)
 plot(theta_grid$y[order(theta_grid$y[-(1:n_x)])], sim_bias[,2][order(theta_grid$y[-(1:n_y)])], 
      ylab = 'Bias', xlab=expression(theta[2]), cex.lab=1.5)
+
+
+order_theta_1 <- order(theta_grid[,1])
+order_theta_2 <- order(theta_grid[,2])
+
+plot(o_theta_val, mu_centered, xlim=c(-4,4), ylim=c(-1e-2,1e-2), col = 'white')
+already_done <- rep(0 , length(order_theta_1))
+for(o_theta in order_theta_1){
+  o_theta_val <- theta_grid[o_theta,1]
+  mu_centered <- mean(sim_res_temp[[o_theta]][,1]) - o_theta_val
+  sigma <- sd(sim_res_temp[[o_theta]][,1])
+  if(!(o_theta_val %in% already_done)){
+    points(o_theta_val, mu_centered)
+    already_done[o_theta] <- o_theta_val
+  }
+}
+
+ggplot(sim_bias[,1] %>% as.data.frame, aes(x=theta_grid[17:256,1], y=theta_grid[17:256,2]) ) +
+  geom_hex(bins = 70) +
+  theme_bw()
+
+
+data_to_plot <- data.frame(zz=sim_bias[,1], xx=theta_grid[17:256,1]+ rnorm(mean=0,sd = 0.001, n = 240), yy=theta_grid[17:256,2] + rnorm(mean=0,sd = 0.001, n = 240))
+
+# Area + contour
+ggplot(data_to_plot, aes(xx,yy, z=zz)) +
+  # stat_contour(aes(fill = ..level..), geom = "polygon")+
+  labs(fill = "Bias", x = expression(theta[1]), y= expression(theta[2]), cex=2) + 
+  theme_classic() +
+  scale_fill_viridis_c(alpha = 1, begin = 0.2) +
+  ylim(0,4)+
+  theme(
+    axis.title.x = element_text(size = 18),
+    axis.text.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18),
+    axis.text = element_text(size = 18),
+    legend.text=element_text(size=18),
+    legend.title = element_text(size=17))
+
+
+data_to_plot <- data.frame(zz=sim_bias[,2])
+ggplot(data_to_plot, aes(theta_grid[17:256,1], theta_grid[17:256,2])) +
+  geom_contour(aes(z = zz))
+  
+
+geom_raster(aes(fill = data_to_plot$zz))
+  
+  
+  stat_contour() +
+  labs(fill = "Bias", x = expression(theta[1]), y= expression(theta[2]), cex=2) + 
+  theme_classic() +
+  scale_fill_viridis_c(alpha = 1, begin = 0.2) +
+  ylim(0,4) +
+  theme(
+    axis.title.x = element_text(size = 18),
+    axis.text.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18),
+    axis.text = element_text(size = 18),
+    legend.text=element_text(size=18),
+    legend.title = element_text(size=17))
 
 
 contour_mat <- matrix(0, ncol=n_x, nrow=n_y)

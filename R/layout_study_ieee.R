@@ -206,7 +206,7 @@ for(path_number in 1:sim_res$n_paths){
 # bias_array_full is thetas, path, subsampling, choice of theta
 # write.table(bias_array_full, 'bias_array_full')
 
-regression_res <- rep(0, length(n_x*n_y))
+#regression_res <- rep(0, length(n_x*n_y))
 for(i in (n_x+1):(n_x*n_y)){
   # bias_array_full[20,1,2:12,1] %>% plot
   sd_ba <- vapply(1:12, function(slice){bias_array_full[i,,slice,1] %>% sd}, 1)
@@ -220,7 +220,7 @@ for(i in (n_x+1):(n_x*n_y)){
   
   lines((mean_ba[2:12] + 1.96*sd_ba[2:12] / sqrt(sim_res$n_paths)) %>% log, type= 'b', lty=2)
   lines((mean_ba[2:12] - 1.96*sd_ba[2:12] / sqrt(sim_res$n_paths)) %>% log, type= 'b', lty=2)
-  regression_res[i] <- (line(mean_ba[2:12])$coefficients[2])
+  #regression_res[i] <- (line(mean_ba[2:12])$coefficients[2])
 }
 
 hist(regression_res[17:256], breaks=100)
