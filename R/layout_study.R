@@ -7,23 +7,28 @@ source('network_ou_mle.R')
 source('utilities.R')
 source('bivariate_params_generation.R')
 
-library(parallel)
-
 set.seed(42)
 
 ### LAYOUT
+setwd('~/GitHub/r-continuous-network/data/')
+Q_used <- rlist::list.load('mle_re_reurope_50.RData')
+ghyp_fit_re_europe_50 <- rlist::list.load('50_nodes_ghyp_fit_v2.RData')
+
+setwd('~/GitHub/r-continuous-network/data/')
+Q_used$MLE_wide
 n_paths <- 1000
 d <- 50
-theta_2 <- 0.8
-theta_1 <- 0.2
+theta_2 <- Q_used$MLE_wide[2]
+theta_1 <- Q_used$MLE_wide[1]
 
 # Fixing starting points etc
-N <- 1000
-delta_t <- 1/100 # ratio N * delta_t = 10 here
-y_0 <- 0.5
+N <- 2000
+delta_t <- 1/24 # ratio N * delta_t = 10 here
+y_0 <- 
 
 # generating noise
 l_data <- list()
+
 for(i in 1:n_paths){
   l_data[[i]] <- matrix(rnorm(N*d,c(0,0.1)*sqrt(delta_t)), nrow=N)
   #l_data[[i]] <- matrix(rghyp(N*d, NIG(chi = 5, psi = 3)), nrow=N)
