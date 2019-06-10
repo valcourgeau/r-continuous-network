@@ -13,7 +13,7 @@ ConstructPath <- function(nw_topo, noise, y_init, delta_time){
   d_y <- matrix(0, nrow=n, ncol=d)
   d_y[1,] <- y_init
   for(i in 2:n){
-    d_y[i,] <-  d_y[i-1,] - nw_topo %*% d_y[i-1,] * delta_time + noise[i,]
+    d_y[i,] <-  d_y[i-1,] - as.vector(nw_topo %*% d_y[i-1,]) * delta_time + noise[i,]
   }
   
   return(d_y)  

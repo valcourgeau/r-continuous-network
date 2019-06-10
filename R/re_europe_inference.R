@@ -78,7 +78,7 @@ n_df_load <- 50000
 n_nodes <- 50
 # df_load <- read.csv("~/GitHub/r-continuous-network/data/RE-Europe_dataset_package/Nodal_TS/wind_signal_COSMO.csv", 
 #                     nrows = n_df_load)[,1:(n_nodes+1)]
-df_load <- data.table::fread("~/GitHub/r-continuous-network/data/RE-Europe_dataset_package/Nodal_TS/wind_signal_COSMO.csv", 
+df_load <- data.table::fread("~/GitHub/r-continuous-network/data/RE-Europe_dataset_package/Nodal_TS/wind_signal_ECMWF.csv", 
                              stringsAsFactors = F)
 df_load <- df_load[,1:(n_nodes+1)]
 df_load <- df_load[-1,]

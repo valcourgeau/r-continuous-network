@@ -180,6 +180,7 @@ NOUfit <- function(nw_topo, times, data, thresholds){
   
   # Check 
   nw_topo <- StdTopo(nw_topo = nw_topo)
+  
   nw_test <- nw_topo
   diag(nw_test) <- 1 
   if(max(Re(eigen(nw_test)$values)) <= 0){

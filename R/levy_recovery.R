@@ -83,6 +83,7 @@ FitLevyRecoveryDiffusion <- function(data, m=1){
 
 # after doing re_europe_inference.R
 data_tmp <- as.matrix(df_load[,-1])
+data_tmp <- (rowSums(data_tmp) * data_tmp)
 adj_tmp <- igraph::as_adjacency_matrix(topo_graph)
 
 par(mfrow=c(2,5))
@@ -106,7 +107,7 @@ for(m in 1:5){
 
 LevyRecovery(nw_topo = adj_tmp, data = data_tmp, times = (1:nrow(data_tmp))/24, m = 1, fitted = F, on_matrix = F)
 
-lr <- LevyRecovery(nw_topo = adj_tmp, data = data_tmp, times = (1:nrow(data_tmp))/24, m = 2, fitted = F, on_matrix = F)
+lr <- LevyRecovery(nw_topo = adj_tmp, data = data_tmp, times = (1:nrow(data_tmp))/24, m = 1, fitted = F, on_matrix = F)
 
 ind_seq <- seq(1, to=nrow(lr$increments), length.out = 5) %>% round
 
@@ -144,6 +145,7 @@ for(node_number in n_numbers){
 # lr <- LevyRecovery(nw_topo = adj_tmp, data = data_tmp, times = (1:nrow(data_tmp))/24, m = 2, fitted = F, on_matrix = F)
 
 fit_ghyp <- FitLevyRecoveryDiffusion(data = lr$increments, m=lr$m)
+
 fit_ghyp['NIG']$NIG@sigma %>% heatmap
 cov2cor(fit_ghyp['NIG']$NIG@sigma) %>% 
   (function(x){heatmap.2(x, Rowv = F, Colv = F, col = viridis, scale = 'none', trace='none', 
@@ -160,7 +162,22 @@ cov2cor(fit_ghyp['NIG']$NIG@sigma) %>%
                          lmat=matrix(c(0,0,0, 0,1,2,0, 4,3), byrow = T, ncol=3), 
                          key.title = '', key.par = list(cex.lab=1.5),
                          key.ylab = '')})
-plot(lr$increments[,20])
+
+cov2cor(ghyp_full@sigma) %>% 
+  (function(x){heatmap.2(x, Rowv = F, Colv = F, col = viridis, scale = 'none', trace='none', 
+                         labRow = vapply(1:50, FUN = function(i){if(i<25){paste('P-',stringr::str_pad(string = i, width = 2, pad = '0'),sep = '')}else{
+                           paste('E-',stringr::str_pad(string = i-24, width = 2, pad = '0'),sep = '')
+                         }}, FUN.VALUE = ''),
+                         labCol = vapply(1:50, FUN = function(i){if(i<25){paste('P-',stringr::str_pad(string = i, width = 2, pad = '0'),sep = '')}else{
+                           paste('E-',stringr::str_pad(string = i-24, width = 2, pad = '0'),sep = '')
+                         }}, FUN.VALUE = ''),
+                         colsep = 24, rowsep = 24,
+                         lhei = c(0.1,1,0.2),
+                         lwid = c(0.1,1,0.1),
+                         cexRow = 1.3, cexCol = 1.3,
+                         lmat=matrix(c(0,0,0, 0,1,2,0, 4,3), byrow = T, ncol=3), 
+                         key.title = '', key.par = list(cex.lab=1.5),
+                         key.ylab = '')})
 
 fit_ghyp['NIG']$NIG@aic
 fit_ghyp['GAUSS']$GAUSS@aic
@@ -172,7 +189,7 @@ fit_ghyp['GAUSS']$GAUSS@llh
 fit_ghyp['VG']$VG@llh
 fit_ghyp['T']$T@llh
 
-rlist::list.save(fit_ghyp, '50_nodes_ghyp_fit_v2.RData')
+rlist::list.save(fit_ghyp, '50_nodes_ghyp_fit_v3.RData')
 cov2cor(fit_ghyp['VG']$VG@sigma) %>% (function(x){heatmap.2(x, Rowv = F, Colv = F)})
 
 Q_used <- NOUfit(nw_topo = adj_tmp, data = data_tmp, times = (1:nrow(data_tmp))/24, thresholds = rep(1000, ncol(data_tmp)))

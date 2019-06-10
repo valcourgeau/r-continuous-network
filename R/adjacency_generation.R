@@ -3,7 +3,7 @@
 #   - max(degree) = 0, 2, 4/8, d-1
 
 #' @example IsolatedNetwork(d=10)
-IsolatedNetwork <- function(d, theta_2=1){
+IsolatedNetwork <- function(d, theta_1, theta_2=1){
   # theta_2 is the diagonal element
   return(theta_2*diag(d))
 }
@@ -49,7 +49,13 @@ LatticeNetwork <- function(d, theta_1, theta_2, diag.connections=F, directed=F){
   # }
   
   #net_matrix <- ngspatial::adjacency.matrix(d)
-  net_matrix <- copCAR::adjacency.matrix(d)
+  d_real <- round(sqrt(d))
+  net_matrix <- copCAR::adjacency.matrix(d_real)
+  if(d_real^2 < d){
+    net_matrix <- rbind(net_matrix, matrix(0, nrow=d-d_real^2, ncol=d_real*d_real))
+    net_matrix <- cbind(net_matrix, rbind(matrix(0, ncol=d-d_real^2, nrow=d_real*d_real), diag(1, nrow = d - d_real^2)))
+  }
+ 
   net_matrix <- net_matrix / rowSums(abs(net_matrix))
   net_matrix <- theta_1 * net_matrix
   diag(net_matrix) <- theta_2
@@ -57,7 +63,7 @@ LatticeNetwork <- function(d, theta_1, theta_2, diag.connections=F, directed=F){
   return(net_matrix)
 }
 
-LatticeNetwork(10, theta_1 = 1, theta_2 = 2)
+LatticeNetwork(10, theta_1 = 1, theta_2 = 2) %>% rowSums
 
 #' @example FullyConnectedNetwork(10, 1, 2)
 FullyConnectedNetwork <- function(d, theta_1, theta_2, directed=F){
