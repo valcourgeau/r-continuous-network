@@ -42,9 +42,12 @@ plot.igraph(x = topo_graph, add=T, rescale=F,
 
 
 ### Numerics
+load_nodes <- read.csv(file = "Static_data/network_nodes.csv")
 n_df_load <- 500
-n_nodes <- 70
-df_load <- read.csv("Nodal_TS/load_signal.csv", nrows = n_df_load)[,1:(n_nodes+1)]
+n_nodes <- 50
+df_load <- read.csv("Nodal_TS/load_signal.csv", nrows = n_df_load)[,2:(n_nodes+1)]
+load_nodes <- read.csv(file = "Static_data/network_nodes.csv")
+colnames(df_load) <- load_nodes$name[1:50]
 #par(mfrow=c(round(sqrt(n_nodes)) ,round(sqrt(n_nodes+1))))
 par(mfrow=c(1,1))
 plot(df_load[,2], type="l", ylim=c(0,1800), ylab="Hourly load in MWh",
