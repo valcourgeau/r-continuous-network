@@ -15,7 +15,9 @@ pckgs_to_load <- c(
   "EntropyEstimation",
   "CompQuadForm",
   "JumpTest",
-  "parallel"
+  "parallel",
+  "RColorBrewer",
+  "colorspace"
 )
 
 check.packages <- function(pkg){
