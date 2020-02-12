@@ -3,26 +3,23 @@ library("raster")
 library(magrittr)
 library("data.table")
 
-
-setwd("~/GitHub/r-continuous-network/data/RE-Europe_dataset_package/")
-setwd("Nodal_TS/")
+data_path <- "~/GitHub/r-continuous-network/data/re-europe/"
 
 #### Network topography
 n_edges <- 50 # this can be easily increased to 1000s
 set.seed(42)
+setwd(data_path)
 
-setwd("../Metadata/")
-load_nodes <- read.csv(file = "network_nodes.csv")
+load_nodes <- read.csv(file = "Static_data/network_nodes.csv")
 #load_nodes <- load_nodes[-which(topo_nodes %in% c("Varna", "FromUkrainaWest")),]
 colnames(load_nodes)
 load_nodes <- load_nodes[1:n_edges,]
 topo_nodes <- data.frame("name"=load_nodes$ID, 
                          "lon"= load_nodes$longitude,
-                         "lat"=load_nodes$latitude
-)
+                         "lat"=load_nodes$latitude)
 load_nodes
 
-load_edges <- read.csv(file = "network_edges.csv")
+load_edges <- read.csv(file = "Static_data/network_edges.csv")
 colnames(load_edges)
 load_edges <- load_edges[which(load_edges$fromNode %in% 1:n_edges & 
                                  load_edges$toNode %in% 1:n_edges),]
@@ -45,10 +42,9 @@ plot.igraph(x = topo_graph, add=T, rescale=F,
 
 
 ### Numerics
-setwd("../Nodal_TS/")
 n_df_load <- 500
 n_nodes <- 70
-df_load <- read.csv("load_signal.csv", nrows = n_df_load)[,1:(n_nodes+1)]
+df_load <- read.csv("Nodal_TS/load_signal.csv", nrows = n_df_load)[,1:(n_nodes+1)]
 #par(mfrow=c(round(sqrt(n_nodes)) ,round(sqrt(n_nodes+1))))
 par(mfrow=c(1,1))
 plot(df_load[,2], type="l", ylim=c(0,1800), ylab="Hourly load in MWh",
@@ -59,7 +55,7 @@ for(i in 2:n_nodes){
 
 n_df_load <- 72
 n_nodes <- 70
-df_load <- read.csv("solar_signal_COSMO.csv", nrows = n_df_load)[,1:(n_nodes+1)]
+df_load <- read.csv("Nodal_TS/solar_signal_COSMO.csv", nrows = n_df_load)[,1:(n_nodes+1)]
 #par(mfrow=c(round(sqrt(n_nodes)) ,round(sqrt(n_nodes+1))))
 par(mfrow=c(1,1))
 library(colorspace)
@@ -78,7 +74,7 @@ n_df_load <- 50000
 n_nodes <- 50
 # df_load <- read.csv("~/GitHub/r-continuous-network/data/RE-Europe_dataset_package/Nodal_TS/wind_signal_COSMO.csv", 
 #                     nrows = n_df_load)[,1:(n_nodes+1)]
-df_load <- data.table::fread("~/GitHub/r-continuous-network/data/RE-Europe_dataset_package/Nodal_TS/wind_signal_ECMWF.csv", 
+df_load <- data.table::fread("~/GitHub/r-continuous-network/data/re-europe/Nodal_TS/wind_signal_ECMWF.csv", 
                              stringsAsFactors = F)
 df_load <- df_load[,1:(n_nodes+1)]
 df_load <- df_load[-1,]
@@ -100,14 +96,12 @@ for(i in 9:2){
        main=paste("Incr of data-mean", i))
   lines(d, dnorm(x = d, mean = mean(d), sd = sd(d)), lwd=2)
 }
-
-
-#JumpTest1D(data=df_load[1:5000,50], )
+# JumpTest1D(data=df_load[1:5000,50], )
 
 d_n <- 1/(24*3600)
 plot(seq(0,1/2,length.out = 1000), vapply(seq(0,1/2,length.out = 1000), 
        function(x){length(which(absolute_increments < d_n^(x)))/length(absolute_increments)}, 1))
-v_n <- d_n^0.3
+v_n <- d_n^0.49
 
 whole_stream <- df_load[, 50]
 
@@ -121,6 +115,7 @@ cts_stream <- whole_stream
 cts_stream[filter_indices+1] <- cts_stream[filter_indices+1] - signed_increments[filter_indices]
 jump_stream[filter_indices+1] <- signed_increments[filter_indices]
 
+par(mfrow=c(1,1))
 plot(whole_stream[1:200], type='b')
 lines(cts_stream[1:200], col='red')
 lines(cts_stream[1:200]+jump_stream[1:200], col='green')
@@ -130,7 +125,7 @@ for(k in filter_indices){
 
 rollapply(signed_increments[(absolute_increments >= v_n)] %>% as.numeric() %>% diff, FUN=sd, width=1000) %>% (function(x){plot(x,ylim=c(0,.5), main='Empirical SD: test for time-homogeneous Compound Poisson')})
 
-nig_fit <- ghyp::fit.NIGmv(data = df_load[1:10000,2:10])
+nig_fit <- ghyp::fit.ghypmv(data = df_load[1:10000,2:10])
 plot(density(ghyp::rghyp(n = 5000, nig_fit)[,1]))
 hist(df_load[1:20000,2], breaks=100, add=T, probability=T)
 
@@ -148,8 +143,6 @@ signed_increments[(absolute_increments >= v_n)] %>% as.numeric() %>% diff %>% me
 signed_increments[(absolute_increments >= v_n)] %>% as.numeric() %>% diff %>% sd
 MASS::fitdistr(signed_increments[(absolute_increments >= v_n)] %>% as.numeric() %>% diff, densfun = 'normal')
 lambda <- var(jump_stream) / mean(signed_increments[(absolute_increments >= v_n)] %>% as.numeric() %>% diff %>% (function(x){x^2})) / (length(jump_stream)*d_n)
-
-
 
 d <- sort(diff(df_load[i:1500,50]))
 hist(d, breaks=100, col=rgb(0.8*i/10,0.5,0.8*i/10,0.8), probability = T,

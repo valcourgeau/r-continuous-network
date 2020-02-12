@@ -95,7 +95,3 @@ for(i in 9:2){
   hist(d, breaks=35, col=rgb(0.8*i/10,0.5,0.8*i/10,0.8), probability = T,
        main=paste("Incr of data-mean", 1))
   lines(d, dnorm(x = d, mean = mean(d), sd = sd(d)), lwd=2)
-
-
-  
-  
