@@ -34,10 +34,12 @@ times <- c(0.1,0.4)
 res <- scaleMatrix(x = nw_topo, time = times)
 
 networkOUCov <- function(nw_topo, levy_cov, cor=FALSE, dtime=0.1){
+  # This function creates NOU Covariance/Correlation matrices
   if(!identical(dim(nw_topo), dim(levy_cov)))
     stop("Wrong dimensions")
 
   dt <- seq(from = 0, to = 40, by = dtime)
+  tmp <- Sys.time()
   seqMat <- scaleMatrix(-nw_topo, dt) 
   seqMat_exp <- mclapply(seqMat, FUN = Matrix::expm)
   seqMat_exp_t <- mclapply(t(seqMat), FUN = Matrix::expm)
@@ -46,9 +48,11 @@ networkOUCov <- function(nw_topo, levy_cov, cor=FALSE, dtime=0.1){
                          (levy_cov) %*% 
                          seqMat_exp_t[[i]])*dtime}) # TODO deltaT variable
   seqMat <- Reduce('+', seqMat)
+  print(Sys.time() - tmp)
   return(if(cor){cov2cor(seqMat)}else{seqMat})
 }
 
+# Example networkOUCov
 nw_topo <- c(1,1,0,
              1,1,0,
              0,0,1)
@@ -63,9 +67,9 @@ nw_cov <- matrix(nw_cov, ncol = 3)
 nw_cov
 
 networkOUCov(nw_topo = nw_topo, levy_cov = nw_topo)
-networkOUCov(nw_topo = nw_topo, levy_cov = nw_cov, cor = F)
+networkOUCov(nw_topo = nw_topo, levy_cov = nw_cov, cor = F, dtime = 0.05)
 networkOUCov(nw_topo = nw_topo, levy_cov = nw_cov, cor = T, dtime = 0.05)
-networkOUCov(nw_topo = matrix(c(1,1,1,1), ncol=2), levy_cov = nw_cov)
+networkOUCov(nw_topo = matrix(rep(1, 9), ncol=3), levy_cov = nw_cov)
 
 
 library(MASS)
@@ -74,7 +78,7 @@ nOUmleResiduals <- function(d, n, nw_topo, levy_cov,
   # TODO Better second moment for \LL_1 including jumps
   nw_statio <- networkOUCov(nw_topo = nw_topo, 
                             levy_cov = levy_cov, dtime = dtime)
-  nw_statio <- kronecker(solve(nw_statio), levy_cov)
+  nw_statio <- kronecker(levy_cov, solve(nw_statio))
   d.square <- dim(nw_statio)[1]
   return(mvrnorm(n = n, mu=rep(0, d.square), 
                  Sigma = nw_statio/horizon, empirical = empirical))

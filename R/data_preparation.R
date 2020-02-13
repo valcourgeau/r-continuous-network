@@ -12,15 +12,3 @@ CleanData <- function(data, frequency=24, s.window=24, t.window=24, ...){
   # remainders <- t(apply(remainders, 1, function(x){x/std.dev}))
   return(list(stl_obj=stl_cleaned, remainders=remainders, std.dev=std.dev))
 }
-
-ok <- CleanData(data = df_load)
-plot(ok$stl_obj[[1]])
-FasenRegression(ok$remainders)
-
-ok$remainders[,1]
-ok$stl_obj$`P-1`$time.series[,3]
-ok$remainders[1:500,1] %>% plot
-ok$remainders[1:500,2] %>% plot
-ok$remainders[1:500,3] %>% plot
-ok$remainders[1:500,4] %>% plot
-ok$remainders[1:500,5] %>% plot
