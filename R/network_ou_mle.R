@@ -1,4 +1,3 @@
-#source("R/package_to_load.R")
 CHECK_EXAMPLE <- FALSE
 ### Functions to compute cts-time NAR-equivalent MLE and drift MLE
 
@@ -123,8 +122,6 @@ if(CHECK_EXAMPLE){
   draw_n <- seq(from=8, to=N, by=1000)
   mle_fit_example <- matrix(0, ncol=length(draw_n),
                             nrow=M)
-  
-  
   sigma <- 0.1
   set.seed(42)
   nw_topo <- genRdmAssymetricGraphs(d = d, p.link = 0.25,
@@ -153,6 +150,7 @@ if(CHECK_EXAMPLE){
     }
   }
   
+  par(mfrow=c(1,1))
   plot(draw_n[-length(draw_n)], colMeans(mle_fit_example[,-length(draw_n)]), 
        xlab="Sample size", ylab="1D MLE", main="1D MLE as sample size",
        ylim=c(0,2), type="l", col="red")  
@@ -229,7 +227,6 @@ NOUfit <- function(nw_topo, times, data, thresholds){
 #source("R/network_generation.R")
 
 if(CHECK_EXAMPLE){
-  source("R/network_generation.R")
   d <- 5 #dims
   N <- 24*1500 #numbers of points
   M <- 10 # number of simulations
@@ -299,16 +296,21 @@ rep.col <- function(matrix, n_copy){
 }
 
 # Example
-rep.col(matrix(1:9, nrow=3), 2)
-rep.col(matrix(1:6, nrow=2), 3)
+if(CHECK_EXAMPLE){
+  rep.col(matrix(1:9, nrow=3), 2)
+  rep.col(matrix(1:6, nrow=2), 3)
+}
+
 
 rep.mat <- function(matrix, n_copy){
   return(matrix(rep(matrix, n_copy), nrow=nrow(matrix)))
 }
 
 # Example
-rep.mat(matrix(1:9, nrow=3), 2)
-rep.mat(matrix(1:6, nrow=2), 3)
+if(CHECK_EXAMPLE){
+  rep.mat(matrix(1:9, nrow=3), 2)
+  rep.mat(matrix(1:6, nrow=2), 3)
+}
 
 NOUmatrix <- function(nw_topo, times, data, thresholds){
   # TODO check sum with difference time series
@@ -352,7 +354,6 @@ NOUmatrix <- function(nw_topo, times, data, thresholds){
 
 # Example
 if(CHECK_EXAMPLE){
-  source("R/network_generation.R")
   d <- 5 #dims
   N <- 24*1500 #numbers of points
   M <- 10 # number of simulations
@@ -360,7 +361,6 @@ if(CHECK_EXAMPLE){
   delta_t <- 1/24
   draw_n <- seq(from=8, to=N, by=1000)
 
-  
   sigma <- 0.1
   set.seed(42)
   nw_topo <- genRdmAssymetricGraphs(d = d, p.link = 0.25,
@@ -385,7 +385,6 @@ if(CHECK_EXAMPLE){
   thresholds <- rep(10, d)
   mle_matrix_test <- NOUmatrix(nw_topo = nw_q, times = times, data = nw_data, thresholds = thresholds)
   
-  
   # repeated testing
   M <- 1000 # number of simulations
   sigma <- 0.1
@@ -396,7 +395,7 @@ if(CHECK_EXAMPLE){
   
   times <- seq(from = 0, by = delta_t, length.out = N)
   thresholds <- rep(10, d)
-  mle_mat_example <- matrix(0, ncol=d^2, nrow=M)
+  mle_mat_example <-array(0, dim=c(M,d,d))
   for(i in 1:M){
     nw_data_bm <- matrix(rnorm(n = d*N, mean = 0, sd = sigma*sqrt(delta_t)), ncol = d)
     nw_data <- matrix(0, ncol=d, nrow=N)
@@ -409,7 +408,7 @@ if(CHECK_EXAMPLE){
       nw_data[index,] <-  nw_data[index-1,] - (nw_q %*% nw_data[index-1,]) * (times[index]-times[index-1]) + nw_data_bm[index,]
     }
     
-    mle_mat_example[i,] <- as.vector(
+    mle_mat_example[i,,] <- as.vector(
       NOUmatrix(nw_topo = nw_q, times = times, data = nw_data, thresholds = thresholds)
     )
   }

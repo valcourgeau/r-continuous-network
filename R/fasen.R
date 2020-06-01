@@ -1,3 +1,4 @@
+CHECK_EXAMPLE <- FALSE
 
 FasenRegression <- function(data){
   data <- as.matrix(data)
@@ -7,4 +8,6 @@ FasenRegression <- function(data){
   return(t(data_without_first) %*% data_without_last %*% solve(sub))
 }
 
-FasenRegression(CleanData(data = df_load)$remainders)
+if(CHECK_EXAMPLE){
+  FasenRegression(CleanData(data = df_load)$remainders)
+}

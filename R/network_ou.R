@@ -39,7 +39,6 @@ networkOUCov <- function(nw_topo, levy_cov, cor=FALSE, dtime=0.1){
     stop("Wrong dimensions")
 
   dt <- seq(from = 0, to = 40, by = dtime)
-  tmp <- Sys.time()
   seqMat <- scaleMatrix(-nw_topo, dt) 
   seqMat_exp <- mclapply(seqMat, FUN = Matrix::expm)
   seqMat_exp_t <- mclapply(t(seqMat), FUN = Matrix::expm)
@@ -48,7 +47,6 @@ networkOUCov <- function(nw_topo, levy_cov, cor=FALSE, dtime=0.1){
                          (levy_cov) %*% 
                          seqMat_exp_t[[i]])*dtime}) # TODO deltaT variable
   seqMat <- Reduce('+', seqMat)
-  print(Sys.time() - tmp)
   return(if(cor){cov2cor(seqMat)}else{seqMat})
 }
 
@@ -75,11 +73,13 @@ networkOUCov(nw_topo = matrix(rep(1, 9), ncol=3), levy_cov = nw_cov)
 library(MASS)
 nOUmleResiduals <- function(d, n, nw_topo, levy_cov, 
                             horizon, dtime = 0.1, empirical = F){
+  # Simulates from asymptotic distribution of MLE residuals
   # TODO Better second moment for \LL_1 including jumps
   nw_statio <- networkOUCov(nw_topo = nw_topo, 
                             levy_cov = levy_cov, dtime = dtime)
-  nw_statio <- kronecker(levy_cov, solve(nw_statio))
+  nw_statio <- kronecker(solve(nw_statio), levy_cov)
   d.square <- dim(nw_statio)[1]
+  
   return(mvrnorm(n = n, mu=rep(0, d.square), 
                  Sigma = nw_statio/horizon, empirical = empirical))
 }
@@ -101,18 +101,18 @@ sims <- nOUmleResiduals(d = d, n = n, nw_topo = nw_topo, levy_cov = nw_cov,
 cor(sims)
 
 # High-dim example
-source("../../../R/network_generation.R")
-d <- 10
-p.link <- 0.2
-n <- 1000
-set.seed(42)
-nw_topo <- genRdmAssymetricGraphs(d = d, p.link = p.link, theta_1=0.5/d)
-eigen(nw_topo)$values
-nw_cov <- genLevyCovMatrix(d = d)
-horizon <- n * 1/24
-
-sims <- nOUmleResiduals(d = d, n = n, nw_topo = nw_topo, levy_cov = nw_cov,
-                        horizon = horizon)
+# source("../../../R/network_generation.R")
+# d <- 10
+# p.link <- 0.2
+# n <- 1000
+# set.seed(42)
+# nw_topo <- genRdmAssymetricGraphs(d = d, p.link = p.link, theta_1=0.5/d)
+# eigen(nw_topo)$values
+# nw_cov <- genLevyCovMatrix(d = d)
+# horizon <- n * 1/24
+# 
+# sims <- nOUmleResiduals(d = d, n = n, nw_topo = nw_topo, levy_cov = nw_cov,
+#                         horizon = horizon)
 
 library(mvtnorm)
 nOUmleResidualsCI <- function(p, nw_topo, levy_cov, horizon, dtime = 0.1, tail = 'both'){
@@ -141,3 +141,4 @@ nw_cov <- matrix(nw_cov, ncol = 3)
 horizon <- n * 1/24
 sims <- nOUmleResidualsCI(p = 0.95, nw_topo = nw_topo, levy_cov = nw_cov,
                         horizon = horizon)
+sims

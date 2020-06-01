@@ -1,9 +1,8 @@
 # Script to implement levy increment recovery given network topology or
 CHECK_EXAMPLE <- FALSE
-install.packages('pracma')
 
 LevyRecovery <- function(nw_topo, data, times, m=1, fitted=FALSE, on_matrix=FALSE){
-   # only for OU processes
+  # only for OU processes
   # m = number of look-ahead points, default is one to do t_{n} -> t_{n+1}
   assertthat::are_equal(length(times), nrow(data))
 
@@ -78,7 +77,6 @@ FitLevyRecoveryDiffusion <- function(data, m=1){
     i <- i + 1
   }
   return(res)
-  
 }
 
 # after doing re_europe_inference.R
@@ -103,7 +101,6 @@ for(m in 1:5){
   }
   
 }
-
 
 LevyRecovery(nw_topo = adj_tmp, data = data_tmp, times = (1:nrow(data_tmp))/24, m = 1, fitted = F, on_matrix = F)
 

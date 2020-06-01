@@ -1,3 +1,4 @@
+# utils from matrix generation
 
 genLevyCovMatrix <- function(d){
   A <- matrix(runif(d^2)*2-1, ncol=d) 
