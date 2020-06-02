@@ -18,7 +18,8 @@ pckgs_to_load <- c(
   "parallel",
   "RColorBrewer",
   "colorspace",
-  "pracma"
+  "pracma",
+  "profvis"
 )
 
 check.packages <- function(pkg){
