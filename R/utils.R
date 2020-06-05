@@ -8,3 +8,6 @@ RowNormalised <- function(adj){
   return(diag(1.0/divisors) %*% adj)
 }
 
+ConcatenateCol <- function(col_vec, n){
+  return(matrix(rep(col_vec, n), ncol = n))
+}

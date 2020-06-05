@@ -19,7 +19,9 @@ pckgs_to_load <- c(
   "RColorBrewer",
   "colorspace",
   "pracma",
-  "profvis"
+  "profvis",
+  "RcppArmadillo",
+  "gpuSolve"
 )
 
 check.packages <- function(pkg){
