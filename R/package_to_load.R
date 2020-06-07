@@ -21,7 +21,8 @@ pckgs_to_load <- c(
   "profvis",
   "RcppArmadillo",
   "ghyp",
-  "copCAR"
+  "copCAR",
+  "vioplot"
 )
 
 check.packages <- function(pkg){

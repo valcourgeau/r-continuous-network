@@ -111,7 +111,7 @@ for(i in c(3)){ # i is the index of the plotted node
 #######################################################################
 
 set.seed(42)
-n_paths <- 100
+n_paths <- 500
 N <- 10000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
@@ -156,7 +156,7 @@ for(f_network in network_types){
   num_cores <- detectCores()-1
   cl <- makeCluster(num_cores)
   clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims",
-                              "beta", "mesh_size", "n_nodes"
+                              "beta", "mesh_size", "n_nodes", "GrouMLE", "NodeMLELong", "CoreNodeMLE", "RowNormalised"
                               ))
    generated_paths <- parLapply(
     cl,
@@ -169,35 +169,35 @@ for(f_network in network_types){
   print('paths generated in')
   print(Sys.time()-time_init)
   
-  plot(generated_paths[[1]][,1])
-  
   # starting from topology
   #network_topo[which(abs(network_topo) > 1e-16)] <- 1
   beta <- 0.001
   n_row_generated <- nrow(generated_paths[[1]])
-  generated_fit <- lapply(X = generated_paths,
-    FUN =
-      function(x){
-        GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
-                adj = as.matrix(network_topo),
-                data = x,
-                thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
-                mode = 'network',
-                output = 'vector')
-      }
-  )
-  # generated_fit <- parLapply(
-  #   cl,
-  #   generated_paths,
-  #   function(x){
-  #     GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
-  #             adj = as.matrix(network_topo),
-  #             data = x, 
-  #             thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
-  #             mode = 'network',
-  #             output = 'vector')
-  #   }
+  
+  clusterExport(cl, varlist=c("n_row_generated"))
+  # generated_fit <- lapply(X = generated_paths,
+  #   FUN =
+  #     function(x){
+  #       GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
+  #               adj = as.matrix(network_topo),
+  #               data = x,
+  #               thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+  #               mode = 'network',
+  #               output = 'vector')
+  #     }
   # )
+  generated_fit <- parLapply(
+    cl,
+    generated_paths,
+    function(x){
+      GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
+              adj = as.matrix(network_topo),
+              data = x,
+              thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+              mode = 'network',
+              output = 'vector')
+    }
+  )
   stopCluster(cl)
   print('fit generated')
   gen_fit_matrix <- matrix(unlist(generated_fit), ncol = 2, byrow = T)
@@ -206,6 +206,7 @@ for(f_network in network_types){
   index_network <- index_network + 1
 }
 
+vioplot::vioplot(network_study$network_1_t2, network_study$network_2_t2, network_study$network_3_t2, network_study$network_4_t2)
 
 #######################################################################
 ###################### SIMULATION STUDY - IEEE ########################
