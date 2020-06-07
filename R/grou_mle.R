@@ -1,4 +1,6 @@
 
+Rcpp::cppFunction(depends = "RcppArmadillo", code = 'arma::mat mat_inv(const arma::mat &Am) {return inv(Am);}')
+
 NodeMLE <- function(times, data, output="vector"){
   assertthat::assert_that(
     output %in% c("vector", "matrix"),
@@ -38,7 +40,7 @@ CoreNodeMLE <- function(times, data){
   kron_delta_data <- lapply(1:ncol(wo_last), function(i){colSums(delta_data*as.vector(wo_last[,i]))})
   numerator <- do.call(cbind, kron_delta_data)
   
-  denominator <- t(wo_last * delta_t) %*% wo_last
+  denominator <- t(wo_last * as.vector(delta_t)) %*% wo_last
   
   return(list(numerator=numerator, denominator=denominator))
 }
@@ -69,18 +71,17 @@ NodeMLELong <- function(times, data, div=1e5, output="vector"){
   denominator <- Reduce('+', lapply(collection_num_denom, function(coll){coll$denominator}))
   sd_denominator <- sd(denominator)
   inv_denominator <- solve(denominator / sd_denominator)
+  # inv_denominator <- mat_inv(denominator / sd_denominator)
   inv_denominator <- inv_denominator / sd_denominator
   
   numerator <- matrix(numerator, nrow = n_nodes, byrow = FALSE)
   mle <- apply(numerator, MARGIN = 2, function(x){- inv_denominator %*% x})
-  
   if(output == "vector"){
-    return(mle)
+    return(c(mle))
   }else{
-    return(matrix(mle, nrow = n_nodes, ncol = n_nodes, byrow = FALSE))
+    return(mle)
   }
 }
-
 
 GrouMLE <- function(times, data, adj=NA, div = 1e3, mode = "node", output = "vector"){
   assertthat::assert_that(
@@ -88,7 +89,6 @@ GrouMLE <- function(times, data, adj=NA, div = 1e3, mode = "node", output = "vec
     msg=paste('mode should be "node" or "network", given', mode)
   )
   
-
   node_mle <- NodeMLELong(times, data, div = div, output = "vector")
   
   if(any(is.na(adj))){
@@ -119,20 +119,16 @@ GrouMLE <- function(times, data, adj=NA, div = 1e3, mode = "node", output = "vec
       return(c(theta_1, theta_2))
     }else{
       if(output == "matrix"){
-        return(theta_1*adj_normalised + theta_2*diag(n_nodes))
+        return(c(theta_1)*adj_normalised + c(theta_2)*diag(n_nodes))
       }
     }
   }
 }
 
-n_nodes <- 500
+n_nodes <- 50
 n_sample <- 100000
 set.seed(42)
 adj_test <- diag(n_nodes)
 adj_test[2,1] <- 0.5
 sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1), ncol=n_nodes), rep(0, n_nodes), 0.01)
 GrouMLE(times=seq(0, by=0.01, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
-
-
-Rcpp::cppFunction(depends = "RcppArmadillo", code = 'arma::mat mat_inv(const arma::mat &Am) {return inv(Am);}')
-

@@ -1,4 +1,3 @@
-
 pckgs_to_load <- c(
   "igraph",
   "Rcpp",
@@ -21,7 +20,7 @@ pckgs_to_load <- c(
   "pracma",
   "profvis",
   "RcppArmadillo",
-  "gpuSolve"
+  "ghyp"
 )
 
 check.packages <- function(pkg){
