@@ -14,7 +14,7 @@ IsolatedNetwork(d=10, 2)
 PolymerNetwork <- function(d, theta_1, theta_2=1, directed=F){
   assertthat::assert_that(theta_2 > abs(theta_1))
   # theta_2 is the diagonal element
-  mat_temp <-# IsolatedNetwork(d, theta_2 = theta_2)
+  # mat_temp <- IsolatedNetwork(d, theta_2 = theta_2)
   mat_temp <- AugmentedDiag(d = d, offset = 1) + if(directed){-AugmentedDiag(d = d, offset = 1)} else{AugmentedDiag(d=d,offset=-1)}
   mat_temp <- theta_1 * mat_temp / rowSums(abs(mat_temp))
   return(mat_temp + IsolatedNetwork(d = d, theta_2 = theta_2))

@@ -12,13 +12,14 @@ AS_SPARSE <- FALSE
 
 # Functions and procedures to clean the data
 data_path <- "~/GitHub/r-continuous-network/data/re-europe/"
-n_df_load <- 10000
-n_nodes <- 50
+n_df_load <- 20000
+n_nodes <- 5
 df_load <- read.csv(paste(data_path, "Nodal_TS/wind_signal_COSMO.csv", sep=""), nrows = n_df_load+10)[,2:(n_nodes+1)]
 df_load <- df_load[-c(1:10),]
 
-clean_wind_data <- CleanData(df_load)
-core_wind <- clean_wind_data$remainders
+clean_wind_data <- CleanData(df_load, 24, 24, 24)
+core_wind <- apply(clean_wind_data$remainders, 2, cumsum)
+plot(core_wind[,1])
 
 # Network topology
 load_nodes <- read.csv(file=paste(data_path, "Static_data/network_nodes.csv", sep=""))
@@ -34,11 +35,17 @@ topo_edges <- data.frame("from" = load_edges$fromNode,
 topo_graph <- igraph::graph.data.frame(d = topo_edges, directed = TRUE, vertices = topo_nodes)
 
 adj_grid <- igraph::as_adjacency_matrix(topo_graph, sparse = AS_SPARSE)
-
-mle_theta_matrix <- GrouMLE(times=seq(0, by=1, length.out = n_sample), data=core_wind, adj = adj_grid, div = 1e3, mode="network", output = "matrix")
-mle_theta_vector <- GrouMLE(times=seq(0, by=1, length.out = n_sample), data=core_wind, adj = adj_grid, div = 1e3, mode="network", output = "vector")
-
+adj_grid <- as.matrix(adj_grid)
 mesh_size <- 2/24
+cat('Asymptotic ratio:', mesh_size * n_df_load)
+mle_theta_matrix <- GrouMLE(times=seq(0, by=mesh_size, length.out = n_df_load),
+                            data=core_wind, adj = adj_grid, div = 1e3,
+                            mode="network", output = "matrix")
+mle_theta_vector <- GrouMLE(times=seq(0, by=mesh_size, length.out = n_df_load),
+                            data=core_wind, adj = adj_grid, div = 1e3,
+                            mode="network", output = "vector")
+mle_theta_vector
+
 recovery_times <- seq(from = 0, length.out = n_df_load, by = mesh_size)
 levy_increments_recovery <- LevyRecovery(fitted_adj = mle_theta_matrix, data = core_wind, times = recovery_times, look_ahead = 1)
 
@@ -50,7 +57,7 @@ ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$incr
 #######################################################################
 par(mfrow=c(2,5), mar=c(4,4.5,2,4))
 cex_value <- 1.8
-for(i in c(10)){ # i is the index of the plotted node
+for(i in c(3)){ # i is the index of the plotted node
   i <- round(i)
   print(i)
   
@@ -100,20 +107,21 @@ for(i in c(10)){ # i is the index of the plotted node
 }
 
 #######################################################################
-################## SIMULATION STUDY - ARTIFICIAL ######################
+################ SIMULATION STUDY - ARTIFICIAL DATA ###################
 #######################################################################
 
 set.seed(42)
-n_paths <- 1000
-N <- 5000
+n_paths <- 100
+N <- 10000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
   levy_increment_sims[[i]]<- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
 }
 
 # choosing network type
-network_types <- c(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
+network_types <- list(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
 network_types_name <- c('polymer_mles', 'lattice_mles', 'fc_mles', 're_europe_mles')
+
 index_network <- 1
 network_study <- list()
 
@@ -139,27 +147,58 @@ for(f_network in network_types){
     network_topo <- as(network_topo, 'CsparseMatrix')
   }
   first_point <- head(core_wind, 1)
-  generated_paths <- lapply(X = levy_increment_sims, FUN =
-                              function(x){
-                                ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)
-                              })
+  first_point <- rep(0, n_nodes)
+  time_init <- Sys.time() 
+  # generated_paths <- lapply(X = levy_increment_sims, FUN =
+  #                             function(x){
+  #                               ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)
+  #                             })
+  num_cores <- detectCores()-1
+  cl <- makeCluster(num_cores)
+  clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims",
+                              "beta", "mesh_size", "n_nodes"
+                              ))
+   generated_paths <- parLapply(
+    cl,
+    levy_increment_sims,
+    function(x){ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)}
+  )
+  
   # generated_paths<- rlist::list.save(generated_paths, paste(network_types_name[index_network], '.RData', sep = ''))
   # generated_paths <- rlist::list.load(paste(network_types_name[index_network], '.RData', sep = ''))
-  print('paths generated')
+  print('paths generated in')
+  print(Sys.time()-time_init)
+  
+  plot(generated_paths[[1]][,1])
   
   # starting from topology
   #network_topo[which(abs(network_topo) > 1e-16)] <- 1
-  generated_fit <- lapply(X = generated_paths, 
-    FUN = 
+  beta <- 0.001
+  n_row_generated <- nrow(generated_paths[[1]])
+  generated_fit <- lapply(X = generated_paths,
+    FUN =
       function(x){
         GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
-                adj = network_topo,
-                data = x, 
-                thresholds = rep(1000, d),
+                adj = as.matrix(network_topo),
+                data = x,
+                thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
                 mode = 'network',
                 output = 'vector')
       }
   )
+  # generated_fit <- parLapply(
+  #   cl,
+  #   generated_paths,
+  #   function(x){
+  #     GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
+  #             adj = as.matrix(network_topo),
+  #             data = x, 
+  #             thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+  #             mode = 'network',
+  #             output = 'vector')
+  #   }
+  # )
+  stopCluster(cl)
   print('fit generated')
   gen_fit_matrix <- matrix(unlist(generated_fit), ncol = 2, byrow = T)
   network_study[[paste('network_',index_network,'_t1', sep = '')]] <- gen_fit_matrix[,1]

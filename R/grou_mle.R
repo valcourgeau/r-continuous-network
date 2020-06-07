@@ -1,4 +1,3 @@
-
 Rcpp::cppFunction(depends = "RcppArmadillo", code = 'arma::mat mat_inv(const arma::mat &Am) {return inv(Am);}')
 
 NodeMLE <- function(times, data, output="vector"){
@@ -29,7 +28,7 @@ NodeMLE <- function(times, data, output="vector"){
   }
 }
 
-CoreNodeMLE <- function(times, data){
+CoreNodeMLE <- function(times, data, thresholds=NA){
   # Computes the numerator and denominator of a batch of data
   n_nodes <- ncol(data)
   n_data <- nrow(data)
@@ -37,15 +36,25 @@ CoreNodeMLE <- function(times, data){
   delta_data <- apply(data, MARGIN = 2, diff)
   wo_last <- data[-n_data,]
  
-  kron_delta_data <- lapply(1:ncol(wo_last), function(i){colSums(delta_data*as.vector(wo_last[,i]))})
+  kron_delta_data <- lapply(
+    1:ncol(wo_last), 
+    function(i){
+      tmp <- t(delta_data*as.vector(wo_last[,i])) # transpose for the filtering
+      if(!any(is.na(thresholds))){
+        filters <- apply(abs(delta_data), 1, '<=', thresholds)
+        filters <- t(filters)
+        tmp <- tmp * as.vector(filters)
+      }
+      
+      return(colSums(t(tmp)))
+    })
   numerator <- do.call(cbind, kron_delta_data)
   
   denominator <- t(wo_last * as.vector(delta_t)) %*% wo_last
-  
   return(list(numerator=numerator, denominator=denominator))
 }
 
-NodeMLELong <- function(times, data, div=1e5, output="vector"){
+NodeMLELong <- function(times, data, thresholds, div=1e5, output="vector"){
   assertthat::assert_that(
     output %in% c("vector", "matrix"),
     msg=paste('output should be "node" or "network", given', output)
@@ -59,22 +68,24 @@ NodeMLELong <- function(times, data, div=1e5, output="vector"){
   if(tail(idx, n=1) != n_data){ # check if last elem is in
     idx <- c(idx, n_data)
   } 
+  idx <- idx[which(idx < n_data)]
   collection_num_denom <- lapply(
     1:(length(idx)-1),
     FUN = function(i){
       idx_couple <- idx[i]:idx[i+1]
-      CoreNodeMLE(times[idx_couple], data[idx_couple,])
+      CoreNodeMLE(times = times[idx_couple], data = data[idx_couple,], thresholds = thresholds)
     }
   )
   
   numerator <- Reduce('+', lapply(collection_num_denom, function(coll){coll$numerator}))
   denominator <- Reduce('+', lapply(collection_num_denom, function(coll){coll$denominator}))
   sd_denominator <- sd(denominator)
+  
   inv_denominator <- solve(denominator / sd_denominator)
   # inv_denominator <- mat_inv(denominator / sd_denominator)
   inv_denominator <- inv_denominator / sd_denominator
-  
   numerator <- matrix(numerator, nrow = n_nodes, byrow = FALSE)
+  
   mle <- apply(numerator, MARGIN = 2, function(x){- inv_denominator %*% x})
   if(output == "vector"){
     return(c(mle))
@@ -83,21 +94,20 @@ NodeMLELong <- function(times, data, div=1e5, output="vector"){
   }
 }
 
-GrouMLE <- function(times, data, adj=NA, div = 1e3, mode = "node", output = "vector"){
+GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node", output = "vector"){
   assertthat::assert_that(
     mode %in% c("node", "network"),
     msg=paste('mode should be "node" or "network", given', mode)
   )
+  if(length(times)!=nrow(data)) stop('length(times)!=nrow(data)')
+  if(all(is.na(adj))){return(node_mle)}
   
-  node_mle <- NodeMLELong(times, data, div = div, output = "vector")
-  
-  if(any(is.na(adj))){
-    return(node_mle)
-  }
   n_nodes <- ncol(adj)
   adj_normalised <- RowNormalised(adj)
+  
+  node_mle <- NodeMLELong(times, data, thresholds = thresholds, div = div, output = "vector")
 
-    if(mode == "node"){
+  if(mode == "node"){
     if(output == "vector"){
       d_a <- c(diag(n_nodes)+adj_normalised)
       return(d_a*node_mle)
@@ -125,13 +135,16 @@ GrouMLE <- function(times, data, adj=NA, div = 1e3, mode = "node", output = "vec
   }
 }
 
-n_nodes <- 50
-n_sample <- 10000
+n_nodes <- 5
+n_sample <- 50000
 set.seed(42)
 adj_test <- diag(n_nodes)
 adj_test[2,1] <- 0.5
-sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1), ncol=n_nodes), rep(0, n_nodes), 0.01)
-GrouMLE(times=seq(0, by=0.01, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
+
+mesh_size <- 0.5
+sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1), ncol=n_nodes), rep(0, n_nodes), mesh_size)
+GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
+GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "vector")
 
 FasenRegression <- function(data){
   data <- as.matrix(data)
