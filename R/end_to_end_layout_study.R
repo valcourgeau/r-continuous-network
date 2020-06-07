@@ -1,5 +1,7 @@
 # loading the packages
 source("~/GitHub/r-continuous-network/R/package_to_load.R")
+source("~/GitHub/r-continuous-network/R/adjacency_generation.R")
+
 
 # We do not use the load data but wind since load is too correlated and not very random
 AS_SPARSE <- FALSE
@@ -11,7 +13,7 @@ AS_SPARSE <- FALSE
 # Functions and procedures to clean the data
 data_path <- "~/GitHub/r-continuous-network/data/re-europe/"
 n_df_load <- 10000
-n_nodes <- 10
+n_nodes <- 50
 df_load <- read.csv(paste(data_path, "Nodal_TS/wind_signal_COSMO.csv", sep=""), nrows = n_df_load+10)[,2:(n_nodes+1)]
 df_load <- df_load[-c(1:10),]
 
@@ -33,58 +35,150 @@ topo_graph <- igraph::graph.data.frame(d = topo_edges, directed = TRUE, vertices
 
 adj_grid <- igraph::as_adjacency_matrix(topo_graph, sparse = AS_SPARSE)
 
-mle_theta <- GrouMLE(times=seq(0, by=1, length.out = n_sample), data=core_wind, adj = adj_grid, div = 1e3, mode="network", output = "matrix")
-mle_theta
+mle_theta_matrix <- GrouMLE(times=seq(0, by=1, length.out = n_sample), data=core_wind, adj = adj_grid, div = 1e3, mode="network", output = "matrix")
+mle_theta_vector <- GrouMLE(times=seq(0, by=1, length.out = n_sample), data=core_wind, adj = adj_grid, div = 1e3, mode="network", output = "vector")
+
+mesh_size <- 2/24
+recovery_times <- seq(from = 0, length.out = n_df_load, by = mesh_size)
+levy_increments_recovery <- LevyRecovery(fitted_adj = mle_theta_matrix, data = core_wind, times = recovery_times, look_ahead = 1)
+
+ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$increments)
 
 
-
+#######################################################################
+###################### LEVY FIT PLOTS #################################
+#######################################################################
 par(mfrow=c(2,5), mar=c(4,4.5,2,4))
 cex_value <- 1.8
-for(i in c(10,40)){
+for(i in c(10)){ # i is the index of the plotted node
   i <- round(i)
   print(i)
   
   quantil_vals <- 1:4999/5000
   
-  val_x_qq <- quantile(x = lr$increments[,i], quantil_vals)
+  val_x_qq <- quantile(x = levy_increments_recovery$increments[,i], quantil_vals)
   set.seed(42)
-  val_y_qq <- ghyp::rghyp(object = ghyp_fit_re_europe_50$NIG, n = length(lr$increments[,i]))[, i]
+  val_y_qq <- ghyp::rghyp(object = ghyp_levy_recovery_fit$NIG, n = length(levy_increments_recovery$increments[,i]))[, i]
   val_y_qq <- quantile(x = val_y_qq, quantil_vals)
   qqplot(x = val_x_qq, y = val_y_qq, 
-         ylab = 'NIG', xlab= paste('Levy increments', i), 
+         ylab = 'NIG', xlab= paste('Lévy incr. (Node ', i, ')', sep=''), 
          cex.lab = cex_value, cex.axis=cex_value)
   
   if(i == 10){title('NIG', cex.main=cex_value, line = 0.8)}
   
   set.seed(42)
-  val_y_qq <- ghyp::rghyp(object = ghyp_fit_re_europe_50$GAUSS, n = length(lr$increments[,i]))[, i]
+  val_y_qq <- ghyp::rghyp(object = ghyp_levy_recovery_fit$GAUSS, n = length(levy_increments_recovery$increments[,i]))[, i]
   val_y_qq <- quantile(x = val_y_qq, quantil_vals)
-  qqplot(x = val_x_qq, y = ghyp::rghyp(object = ghyp_fit_re_europe_50$GAUSS, n = length(lr$increments[,i]))[, i], 
-         ylab = 'Gaussian', xlab= paste('Levy increments', i), 
+  qqplot(x = val_x_qq, y = ghyp::rghyp(object = ghyp_levy_recovery_fit$GAUSS, n = length(levy_increments_recovery$increments[,i]))[, i], 
+         ylab = 'Gaussian', xlab= paste('Lévy incr. (Node ', i, ')', sep=''), 
          cex.lab = cex_value, cex.axis=cex_value)
   if(i == 10){title('Gaussian', cex.main=cex_value, line = 0.8)}
   
   set.seed(42)
-  val_y_qq <- ghyp::rghyp(object = ghyp_fit_re_europe_50$VG, n = length(lr$increments[,i]))[, i]
+  val_y_qq <- ghyp::rghyp(object = ghyp_levy_recovery_fit$VG, n = length(levy_increments_recovery$increments[,i]))[, i]
   val_y_qq <- quantile(x = val_y_qq, quantil_vals)
-  qqplot(x = val_x_qq, y = ghyp::rghyp(object = ghyp_fit_re_europe_50$VG, n = length(lr$increments[,i]))[, i], 
-         ylab = 'VG', xlab= paste('Levy increments', i), 
+  qqplot(x = val_x_qq, y = ghyp::rghyp(object = ghyp_levy_recovery_fit$VG, n = length(levy_increments_recovery$increments[,i]))[, i], 
+         ylab = 'VG', xlab= paste('Lévy incr. (Node ', i, ')', sep=''), 
          cex.lab = cex_value, cex.axis=cex_value)
   if(i == 10){title('VG', cex.main=cex_value, line = 0.8)}
   
   set.seed(42)
-  val_y_qq <- ghyp::rghyp(object = ghyp_fit_re_europe_50$T, n = length(lr$increments[,i]))[, i]
+  val_y_qq <- ghyp::rghyp(object = ghyp_levy_recovery_fit$T, n = length(levy_increments_recovery$increments[,i]))[, i]
   val_y_qq <- quantile(x = val_y_qq, quantil_vals)
-  qqplot(x = val_x_qq, y = ghyp::rghyp(object = ghyp_fit_re_europe_50$T, n = length(lr$increments[,i]))[, i], 
-         ylab = 'Student\'s t', xlab= paste('Levy increments', i),
+  qqplot(x = val_x_qq, y = ghyp::rghyp(object = ghyp_levy_recovery_fit$T, n = length(levy_increments_recovery$increments[,i]))[, i], 
+         ylab = 'Student\'s t', xlab= paste('Lévy incr. (Node ', i, ')', sep=''),
          cex.lab = cex_value, cex.axis=cex_value)
   if(i == 10){title('Student\'s t', cex.main=cex_value, line = 0.8)}
   
   set.seed(42)
-  val_y_qq <- ghyp::rghyp(object = ghyp_full, n = length(lr$increments[,i]))[, i]
+  val_y_qq <- ghyp::rghyp(object = ghyp_levy_recovery_fit$FULL, n = length(levy_increments_recovery$increments[,i]))[, i]
   val_y_qq <- quantile(x = val_y_qq, quantil_vals)
-  qqplot(x = val_x_qq, y = ghyp::rghyp(object = ghyp_full, n = length(lr$increments[,i]))[, i], 
-         ylab = 'GHYP', xlab= paste('Levy increments', i), 
+  qqplot(x = val_x_qq, y = ghyp::rghyp(object = ghyp_levy_recovery_fit$FULL, n = length(levy_increments_recovery$increments[,i]))[, i], 
+         ylab = 'GHYP', xlab= paste('Lévy incr. (Node ', i, ')', sep=''), 
          cex.lab = cex_value, cex.axis=cex_value)
   if(i == 10){title('GHYP', cex.main=cex_value, line = 0.8)}
 }
+
+#######################################################################
+################## SIMULATION STUDY - ARTIFICIAL ######################
+#######################################################################
+
+set.seed(42)
+n_paths <- 1000
+N <- 5000
+levy_increment_sims <- list()
+for(i in 1:n_paths){
+  levy_increment_sims[[i]]<- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
+}
+
+# choosing network type
+network_types <- c(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
+network_types_name <- c('polymer_mles', 'lattice_mles', 'fc_mles', 're_europe_mles')
+index_network <- 1
+network_study <- list()
+
+theta_1 <- mle_theta_vector[1]
+theta_2 <- mle_theta_vector[2]
+
+for(f_network in network_types){
+  warning('TODO: implement file saves')
+  print(index_network)
+  if(index_network < 4){
+    network_topo <- f_network(d = n_nodes, theta_1 = theta_1, theta_2 = theta_2)
+  }else{
+    network_topo <- network_types[index_network][[1]] %>% as.matrix
+    RowNormalised(network_topo)
+    print(RowNormalised(network_topo))
+    diag(network_topo) <- 0
+    network_topo <- network_topo / rowSums(network_topo)
+    network_topo[is.nan(network_topo)] <- 0
+    network_topo <- theta_1 * network_topo
+    diag(network_topo) <- theta_2
+  }
+  if(index_network != 3){
+    network_topo <- as(network_topo, 'CsparseMatrix')
+  }
+  first_point <- head(core_wind, 1)
+  generated_paths <- lapply(X = levy_increment_sims, FUN =
+                              function(x){
+                                ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)
+                              })
+  # generated_paths<- rlist::list.save(generated_paths, paste(network_types_name[index_network], '.RData', sep = ''))
+  # generated_paths <- rlist::list.load(paste(network_types_name[index_network], '.RData', sep = ''))
+  print('paths generated')
+  
+  # starting from topology
+  #network_topo[which(abs(network_topo) > 1e-16)] <- 1
+  generated_fit <- lapply(X = generated_paths, 
+    FUN = 
+      function(x){
+        GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
+                adj = network_topo,
+                data = x, 
+                thresholds = rep(1000, d),
+                mode = 'network',
+                output = 'vector')
+      }
+  )
+  print('fit generated')
+  gen_fit_matrix <- matrix(unlist(generated_fit), ncol = 2, byrow = T)
+  network_study[[paste('network_',index_network,'_t1', sep = '')]] <- gen_fit_matrix[,1]
+  network_study[[paste('network_',index_network,'_t2', sep = '')]] <- gen_fit_matrix[,2]
+  index_network <- index_network + 1
+}
+
+
+#######################################################################
+###################### SIMULATION STUDY - IEEE ########################
+#######################################################################
+
+pipe_layout_39 <- read.csv(file="~/GitHub/r-continuous-network/data/standard-networks/39_pipe_layout.csv")
+pipe_layout_39_dt <- data.frame("from" = pipe_layout_39$Bus_i, "to" = pipe_layout_39$Bus_j)
+pipe_layout_39_topo <- igraph::graph.data.frame(d = pipe_layout_39_dt, directed = FALSE)
+pipe_layout_39_adj <- igraph::as_adjacency_matrix(pipe_layout_39_topo, sparse = AS_SPARSE)
+
+pipe_layout_23 <- read.csv(file="~/GitHub/r-continuous-network/data/standard-networks/pipe_layout.csv")
+pipe_layout_23_dt <- data.frame("from" = pipe_layout_23$Gnode_m, "to" = pipe_layout_23$Gnode_n)
+pipe_layout_23_topo <- igraph::graph.data.frame(d = pipe_layout_23_dt, directed = FALSE)
+pipe_layout_23_adj <- igraph::as_adjacency_matrix(pipe_layout_23_topo, sparse = AS_SPARSE)
+pipe_layout_23_adj[pipe_layout_23_adj!= 0] <- 1 # rm those counted twice

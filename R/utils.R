@@ -25,3 +25,18 @@ CleanData <- function(data, frequency=24, s.window=24, t.window=24, ...){
   # remainders <- t(apply(remainders, 1, function(x){x/std.dev}))
   return(list(stl_obj=stl_cleaned, remainders=remainders, std.dev=std.dev))
 }
+
+#' Returns an offset diagonal matrix
+AugmentedDiag <- function(d, offset){
+  assertthat::assert_that(d > offset)
+  
+  mat_temp <- cbind(
+    matrix(0, nrow=d, ncol=abs(offset)),
+    rbind(diag(d-abs(offset)), matrix(0, ncol=d-abs(offset), nrow=abs(offset)))
+  )
+  if(offset < 0){
+    return(t(mat_temp))
+  }else{
+    return(mat_temp)
+  }
+}

@@ -126,9 +126,18 @@ GrouMLE <- function(times, data, adj=NA, div = 1e3, mode = "node", output = "vec
 }
 
 n_nodes <- 50
-n_sample <- 100000
+n_sample <- 10000
 set.seed(42)
 adj_test <- diag(n_nodes)
 adj_test[2,1] <- 0.5
 sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1), ncol=n_nodes), rep(0, n_nodes), 0.01)
 GrouMLE(times=seq(0, by=0.01, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
+
+FasenRegression <- function(data){
+  data <- as.matrix(data)
+  data_without_first <- data[-1,]
+  data_without_last <- data[-nrow(data),]
+  sub <- t(data_without_last) %*% data_without_last
+  return(t(data_without_first) %*% data_without_last %*% solve(sub))
+}
+

@@ -20,7 +20,8 @@ pckgs_to_load <- c(
   "pracma",
   "profvis",
   "RcppArmadillo",
-  "ghyp"
+  "ghyp",
+  "copCAR"
 )
 
 check.packages <- function(pkg){

@@ -65,6 +65,72 @@ LevyRecovery <- function(nw_topo, data, times, m=1, fitted=FALSE, on_matrix=FALS
   return(recovery_results)
 }
 
+
+LevyRecovery <- function(nw_topo, data, times, m=1, fitted=FALSE, on_matrix=FALSE){
+  # only for OU processes
+  # m = number of look-ahead points, default is one to do t_{n} -> t_{n+1}
+  assertthat::are_equal(length(times), nrow(data))
+  
+  if(!fitted){
+    if(on_matrix){
+      Q_hat <- NOUmatrix(nw_topo = nw_topo, data = data, times = times, thresholds = rep(1000, ncol(data)))
+    }else{
+      Q_hat <- NOUfit(nw_topo = nw_topo, data = data, times = times, thresholds = rep(1000, ncol(data)))
+      Q_hat <- Q_hat[['Q']]
+    }
+  }else{
+    Q_hat <- nw_topo
+    warning('Given fitted Q, ignoring flag on_matrix;')
+  }
+  
+  diff_x <- apply(data, MARGIN = 2, FUN = function(x){diff(x, lag = m)})
+  diff_times <- diff(times, lag =  1)
+  # diff_times_2 <- diff(times, lag = 2)
+  # diff_times <- c(diff_times[1], diff_times_2, diff_times[length(diff_times)])
+  
+  # integrated_x <- zoo::rollapply(t(t(data[-nrow(data),])*diff_times), width = m, FUN = sum) # create integral component-wise
+  integrated_x <- zoo::rollapply(cbind(data, times),
+                                 width = m+1,
+                                 by.column = FALSE,
+                                 FUN = function(sub_integ){
+                                   tt <- sub_integ[,ncol(sub_integ)]
+                                   y_col_bind <- sub_integ[,-ncol(sub_integ)]
+                                   return(apply(y_col_bind,
+                                                MARGIN = 2,
+                                                FUN = function(y){
+                                                  pracma::trapz(x = tt,
+                                                                y = y)}
+                                   ))}
+  ) # create integral component-wise
+  
+  # few dimension checks
+  assertthat::are_equal(nrow(integrated_x), nrow(diff_x))
+  assertthat::are_equal(nrow(data)-m, nrow(diff_x))
+  assertthat::are_equal(dim(Q_hat)[1], ncol(integrated_x))
+  
+  q_integrated_x <- apply(integrated_x, MARGIN = 1, function(x){return(Q_hat %*% x)})
+  if(class(Q_hat) == 'dgCMatrix'){
+    q_integrated_x <- lapply(q_integrated_x, as.matrix) # getting rid of potential sparse matrix
+    q_integrated_x <- t(as.matrix(as.data.frame(q_integrated_x)))
+  }else{
+    q_integrated_x <- t(q_integrated_x)
+  }
+  
+  # TODO implement ghyp
+  # TODO implement with m > 1
+  assertthat::are_equal(dim(diff_x)[1], dim(q_integrated_x)[1])
+  assertthat::are_equal(dim(diff_x)[2], dim(q_integrated_x)[2])
+  
+  recover <- diff_x + q_integrated_x
+  
+  recovery_results <- list()
+  recovery_results[['increments']] <- recover
+  recovery_results[['cumsum']] <- apply(recover, MARGIN = 2, FUN = cumsum)
+  recovery_results[['m']] <- m
+  return(recovery_results)
+}
+
+
 FitLevyRecoveryDiffusion <- function(data, m=1){
   # m how much we hop at every increments
   # data is increments
