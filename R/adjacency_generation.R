@@ -55,9 +55,10 @@ LatticeNetwork <- function(d, theta_1, theta_2, diag.connections=F, directed=F){
     net_matrix <- rbind(net_matrix, matrix(0, nrow=d-d_real^2, ncol=d_real*d_real))
     net_matrix <- cbind(net_matrix, rbind(matrix(0, ncol=d-d_real^2, nrow=d_real*d_real), diag(1, nrow = d - d_real^2)))
   }
- 
-  net_matrix <- net_matrix / rowSums(abs(net_matrix))
-  net_matrix <- theta_1 * net_matrix
+  
+  net_matrix <- theta_1 * RowNormalised(net_matrix)
+  # net_matrix <- net_matrix / pmax(rowSums(abs(net_matrix)), 0.0)
+  # net_matrix <- theta_1 * net_matrix
   diag(net_matrix) <- theta_2
  
   return(net_matrix)

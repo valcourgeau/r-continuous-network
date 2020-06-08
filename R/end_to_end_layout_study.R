@@ -18,7 +18,7 @@ AS_SPARSE <- FALSE
 # Functions and procedures to clean the data
 data_path <- "~/GitHub/r-continuous-network/data/re-europe/"
 n_df_load <- 25000
-n_nodes <- 5
+n_nodes <- 50
 df_load <- data.table::fread(paste(data_path, "Nodal_TS/wind_signal_COSMO.csv", sep=""), nrows = n_df_load+10)[,2:(n_nodes+1)]
 df_load <- df_load[-c(1:10),]
 df_load <- as.matrix(df_load)
@@ -54,16 +54,10 @@ mle_theta_vector <- GrouMLE(times=observed_times,
                             mode="network", output = "vector")
 mle_theta_vector
 
-# for(mesh_size in seq(1e-3, 1, by=0.01)){
-#   mle_theta_vector <- GrouMLE(times=seq(0, by=mesh_size, length.out = n_df_load),
-#                               data=core_wind, adj = adj_grid, div = 1e3,
-#                               mode="network", output = "vector")
-#   cat(mesh_size, '-', mle_theta_vector, '\n')
-# }
-
 recovery_times <- observed_times
 levy_increments_recovery <- LevyRecovery(fitted_adj = mle_theta_matrix, data = core_wind, times = recovery_times, look_ahead = 1)
 ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$increments)
+warning('Set FitLevyRecoveryDiffusion to original version')
 
 #######################################################################
 ###################### LEVY FIT PLOTS #################################
@@ -124,12 +118,14 @@ for(i in c(3)){ # i is the index of the plotted node
 #######################################################################
 
 set.seed(42)
-n_paths <- 100
-N <- 100000
+n_paths <- 20
+N <- 10000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
-  levy_increment_sims[[i]]<- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
+  levy_increment_sims[[i]] <- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
 }
+
+DO_PARALLEL <- TRUE
 
 # choosing network type
 network_types <- list(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
@@ -145,74 +141,79 @@ for(f_network in network_types){
   warning('TODO: implement file saves')
   print(index_network)
   if(index_network < 4){
-    network_topo <- f_network(d = n_nodes, theta_1 = theta_1, theta_2 = theta_2)
+    network_topo <- f_network(d = n_nodes, theta_1 = theta_1, theta_2 = theta_2) %>% as.matrix
   }else{
     network_topo <- network_types[index_network][[1]] %>% as.matrix
-    network_topo <- RowNormalised(network_topo) * theta_1
-    diag(network_topo) <- theta_2
   }
-  print(network_topo)
+  network_topo <- RowNormalised(network_topo) * theta_1
+  diag(network_topo) <- theta_2
   
   network_topo_raw <- RowNormalised(network_topo)
   diag(network_topo_raw) <- 1.0
-  print(network_topo_raw)
   
   first_point <- head(core_wind, 1)
   # first_point <- rep(0, n_nodes)
   time_init <- Sys.time() 
-  # generated_paths <- lapply(X = levy_increment_sims, FUN =
-  #                             function(x){
-  #                               ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)
-  #                             })
-  num_cores <- detectCores()-1
-  cl <- makeCluster(num_cores)
-  clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims", "network_topo_raw",
-                              "beta", "mesh_size", "n_nodes", "GrouMLE", "NodeMLELong", "CoreNodeMLE", "RowNormalised"
-                              ))
-  generated_paths <- parLapply(
-    cl,
-    levy_increment_sims,
-    function(x){ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)}
-  )
-  
+  if(DO_PARALLEL){
+    num_cores <- detectCores()-1
+    cl <- makeCluster(num_cores)
+    clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims", "network_topo_raw",
+                                "beta", "mesh_size", "n_nodes", "GrouMLE", "NodeMLELong", "CoreNodeMLE", "RowNormalised"
+    ))
+    generated_paths <- parLapply(
+      cl,
+      levy_increment_sims,
+      function(x){ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)}
+    )
+  }else{
+    generated_paths <- lapply(
+      X = levy_increment_sims, 
+      FUN =
+        function(x){
+          ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)
+        }
+    )
+  }
   # generated_paths<- rlist::list.save(generated_paths, paste(network_types_name[index_network], '.RData', sep = ''))
   # generated_paths <- rlist::list.load(paste(network_types_name[index_network], '.RData', sep = ''))
   print('paths generated in')
   print(Sys.time()-time_init)
-  
   
   # starting from topology
   #network_topo[which(abs(network_topo) > 1e-16)] <- 1
   beta <- 0.001
   n_row_generated <- nrow(generated_paths[[1]])
   
-  clusterExport(cl, varlist=c("n_row_generated"))
-  generated_fit <- lapply(X = generated_paths,
-    FUN =
+  if(DO_PARALLEL){
+    clusterExport(cl, varlist=c("n_row_generated"))
+    generated_fit <- parLapply(
+      cl,
+      generated_paths,
       function(x){
-        GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
+        GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
                 adj = as.matrix(network_topo_raw),
                 data = x,
-                thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                thresholds = rep(10000, n_nodes), # mesh_size^beta
                 mode = 'network',
                 output = 'vector')
       }
-  )
-  # generated_fit <- parLapply(
-  #   cl,
-  #   generated_paths,
-  #   function(x){
-  #     GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
-  #             adj = as.matrix(network_topo),
-  #             data = x,
-  #             thresholds = rep(10000, n_nodes), # mesh_size^beta
-  #             mode = 'network',
-  #             output = 'vector')
-  #   }
-  # )
-  stopCluster(cl)
+    )
+    stopCluster(cl)
+  }else{
+    generated_fit <- lapply(X = generated_paths,
+                            FUN =
+                              function(x){
+                                GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
+                                        adj = as.matrix(network_topo_raw),
+                                        data = x,
+                                        thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                                        mode = 'network',
+                                        output = 'vector')
+                              }
+    )
+  }
   print('fit generated')
-  gen_fit_matrix <- matrix(unlist(generated_fit), ncol = 2, byrow = T)
+  gen_fit_matrix <- do.call(rbind, generated_fit)
   network_study[[paste( network_types_name[index_network], '_t1', sep = '')]] <- gen_fit_matrix[,1]
   network_study[[paste(network_types_name[index_network], '_t2', sep = '')]] <- gen_fit_matrix[,2]
   index_network <- index_network + 1
@@ -229,6 +230,23 @@ vioplot::vioplot(network_study$polymer_mles_t1/theta_1,
                  network_study$fc_mles_t1/theta_1,
                  network_study$re_europe_mles_t1/theta_1)
 theta_1
+
+colors <- c('#08605F', '#177E89', '#598381', '#8E936D', '#A2AD59')
+colors2 <- c('#E88D67', '#CA7AB8', '#9999C3', '#7B8CDE')
+par(mfrow=c(2,1), mar=c(2,3,1.8,0.5))
+vioplot::vioplot(network_study[c(7,1,3,5)], names = c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete'),
+                 col = colors2,
+                 # col = c('#BE2B2B', '#2BBEBE', '#2BBEBE', '#2BBEBE'),
+                 main=expression(theta[1]),
+                 cex.main=1.8, cex.names=1.5, cex.axis=1.5)
+par(xpd = F) 
+abline(h=theta_1, lwd=2, lty=2)
+vioplot::vioplot(network_study[c(8,2,4,6)], names = c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete'),
+                 col =colors2,
+                 # col = c('#BE2B2B', '#2BBEBE', '#2BBEBE', '#2BBEBE'),
+                 main=expression(theta[2]),
+                 cex.main=1.8, cex.names=1.5, cex.axis=1.5)
+abline(h=theta_2, lwd=2, lty=2)
  
 #######################################################################
 ###################### SIMULATION STUDY - IEEE ########################

@@ -37,9 +37,9 @@ CoreNodeMLE <- function(times, data, thresholds=NA){
   wo_last <- data[-n_data,]
  
   kron_delta_data <- lapply(
-    1:ncol(wo_last), 
+    1:ncol(delta_data), 
     function(i){
-      tmp <- t(delta_data*as.vector(wo_last[,i])) # transpose for the filtering
+      tmp <- t(wo_last*as.vector(delta_data[,i])) # transpose for the filtering
       if(!any(is.na(thresholds))){
         filters <- apply(abs(delta_data), 1, '<=', thresholds)
         filters <- t(filters)
@@ -105,9 +105,9 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
   
   n_nodes <- ncol(adj)
   adj_normalised <- RowNormalised(adj)
+  diag(adj_normalised) <- 0.0 # to be sure
   
   node_mle <- NodeMLELong(times, data, thresholds = thresholds, div = div, output = "vector")
-  print(node_mle)
   if(mode == "node"){
     if(output == "vector"){
       d_a <- c(diag(n_nodes)+adj_normalised)
@@ -120,16 +120,13 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
     }
   }else{
     a_l2 <- sum(adj_normalised^2)
-    cat('a_l2', a_l2, '\n')
     if(a_l2 < .Machine$double.eps){
       theta_1 <- 0.0
     }else{
-      theta_1 <- (c(adj_normalised) %*% node_mle) / a_l2
+      theta_1 <- (c(t(adj_normalised)) %*% node_mle)[1,1] / a_l2
     }
     
     theta_2 <- (c(diag(n_nodes)) %*% node_mle)[1,1] / n_nodes
-    cat('theta_1', theta_1, '\n')
-    cat('theta_2', theta_2, '\n')
     if(output == "vector"){
       return(c(theta_1, theta_2))
     }else{
