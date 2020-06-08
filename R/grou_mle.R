@@ -45,12 +45,13 @@ CoreNodeMLE <- function(times, data, thresholds=NA){
         filters <- t(filters)
         tmp <- tmp * as.vector(filters)
       }
+      # tmp <- delta_data*as.vector(wo_last[,i])
       
       return(colSums(t(tmp)))
     })
   numerator <- do.call(cbind, kron_delta_data)
-  
   denominator <- t(wo_last * as.vector(delta_t)) %*% wo_last
+  
   return(list(numerator=numerator, denominator=denominator))
 }
 
@@ -106,7 +107,7 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
   adj_normalised <- RowNormalised(adj)
   
   node_mle <- NodeMLELong(times, data, thresholds = thresholds, div = div, output = "vector")
-
+  print(node_mle)
   if(mode == "node"){
     if(output == "vector"){
       d_a <- c(diag(n_nodes)+adj_normalised)
@@ -118,13 +119,17 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
       }
     }
   }else{
-    a_l2 <- sqrt(sum(adj_normalised^2))
+    a_l2 <- sum(adj_normalised^2)
+    cat('a_l2', a_l2, '\n')
     if(a_l2 < .Machine$double.eps){
       theta_1 <- 0.0
     }else{
       theta_1 <- (c(adj_normalised) %*% node_mle) / a_l2
     }
+    
     theta_2 <- (c(diag(n_nodes)) %*% node_mle)[1,1] / n_nodes
+    cat('theta_1', theta_1, '\n')
+    cat('theta_2', theta_2, '\n')
     if(output == "vector"){
       return(c(theta_1, theta_2))
     }else{
@@ -135,14 +140,14 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
   }
 }
 
-n_nodes <- 5
-n_sample <- 50000
+n_nodes <- 2
+n_sample <- 500000
 set.seed(42)
 adj_test <- diag(n_nodes)
 adj_test[2,1] <- 0.5
 
-mesh_size <- 0.5
-sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1), ncol=n_nodes), rep(0, n_nodes), mesh_size)
+mesh_size <- 0.01
+sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1*mesh_size^(1/2)), ncol=n_nodes), rep(0, n_nodes), mesh_size)
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "vector")
 

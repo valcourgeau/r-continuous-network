@@ -1,7 +1,12 @@
 # loading the packages
 source("~/GitHub/r-continuous-network/R/package_to_load.R")
+source("~/GitHub/r-continuous-network/R/utils.R")
 source("~/GitHub/r-continuous-network/R/adjacency_generation.R")
 
+source("~/GitHub/r-continuous-network/R/levy_recovery_v2.R")
+source("~/GitHub/r-continuous-network/R/utils.R")
+source("~/GitHub/r-continuous-network/R/path_generation.R")
+source("~/GitHub/r-continuous-network/R/grou_mle.R")
 
 # We do not use the load data but wind since load is too correlated and not very random
 AS_SPARSE <- FALSE
@@ -12,13 +17,15 @@ AS_SPARSE <- FALSE
 
 # Functions and procedures to clean the data
 data_path <- "~/GitHub/r-continuous-network/data/re-europe/"
-n_df_load <- 20000
+n_df_load <- 25000
 n_nodes <- 5
-df_load <- read.csv(paste(data_path, "Nodal_TS/wind_signal_COSMO.csv", sep=""), nrows = n_df_load+10)[,2:(n_nodes+1)]
+df_load <- data.table::fread(paste(data_path, "Nodal_TS/wind_signal_COSMO.csv", sep=""), nrows = n_df_load+10)[,2:(n_nodes+1)]
 df_load <- df_load[-c(1:10),]
+df_load <- as.matrix(df_load)
 
-clean_wind_data <- CleanData(df_load, 24, 24, 24)
-core_wind <- apply(clean_wind_data$remainders, 2, cumsum)
+clean_wind_data <- CleanData(df_load, frequency = 24, s.window = 24, t.window = 24*7*4)
+core_wind <- clean_wind_data$remainders
+plot(clean_wind_data$stl_obj$V2)
 plot(core_wind[,1])
 
 # Network topology
@@ -32,25 +39,31 @@ load_edges <- load_edges[which(load_edges$fromNode %in% 1:n_nodes &
                                  load_edges$toNode %in% 1:n_nodes),]
 topo_edges <- data.frame("from" = load_edges$fromNode, 
                          "to" = load_edges$toNode)
-topo_graph <- igraph::graph.data.frame(d = topo_edges, directed = TRUE, vertices = topo_nodes)
+topo_graph <- igraph::graph.data.frame(d = topo_edges, directed = FALSE, vertices = topo_nodes)
 
 adj_grid <- igraph::as_adjacency_matrix(topo_graph, sparse = AS_SPARSE)
 adj_grid <- as.matrix(adj_grid)
 mesh_size <- 2/24
-cat('Asymptotic ratio:', mesh_size * n_df_load)
-mle_theta_matrix <- GrouMLE(times=seq(0, by=mesh_size, length.out = n_df_load),
+observed_times <- seq(0, by=mesh_size, length.out = n_df_load)
+cat('Asymptotic horizon:', mesh_size * n_df_load)
+mle_theta_matrix <- GrouMLE(times=observed_times,
                             data=core_wind, adj = adj_grid, div = 1e3,
                             mode="network", output = "matrix")
-mle_theta_vector <- GrouMLE(times=seq(0, by=mesh_size, length.out = n_df_load),
+mle_theta_vector <- GrouMLE(times=observed_times,
                             data=core_wind, adj = adj_grid, div = 1e3,
                             mode="network", output = "vector")
 mle_theta_vector
 
-recovery_times <- seq(from = 0, length.out = n_df_load, by = mesh_size)
+# for(mesh_size in seq(1e-3, 1, by=0.01)){
+#   mle_theta_vector <- GrouMLE(times=seq(0, by=mesh_size, length.out = n_df_load),
+#                               data=core_wind, adj = adj_grid, div = 1e3,
+#                               mode="network", output = "vector")
+#   cat(mesh_size, '-', mle_theta_vector, '\n')
+# }
+
+recovery_times <- observed_times
 levy_increments_recovery <- LevyRecovery(fitted_adj = mle_theta_matrix, data = core_wind, times = recovery_times, look_ahead = 1)
-
 ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$increments)
-
 
 #######################################################################
 ###################### LEVY FIT PLOTS #################################
@@ -111,8 +124,8 @@ for(i in c(3)){ # i is the index of the plotted node
 #######################################################################
 
 set.seed(42)
-n_paths <- 500
-N <- 10000
+n_paths <- 100
+N <- 100000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
   levy_increment_sims[[i]]<- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
@@ -135,19 +148,132 @@ for(f_network in network_types){
     network_topo <- f_network(d = n_nodes, theta_1 = theta_1, theta_2 = theta_2)
   }else{
     network_topo <- network_types[index_network][[1]] %>% as.matrix
-    RowNormalised(network_topo)
-    print(RowNormalised(network_topo))
-    diag(network_topo) <- 0
-    network_topo <- network_topo / rowSums(network_topo)
-    network_topo[is.nan(network_topo)] <- 0
-    network_topo <- theta_1 * network_topo
+    network_topo <- RowNormalised(network_topo) * theta_1
     diag(network_topo) <- theta_2
   }
-  if(index_network != 3){
-    network_topo <- as(network_topo, 'CsparseMatrix')
-  }
+  print(network_topo)
+  
+  network_topo_raw <- RowNormalised(network_topo)
+  diag(network_topo_raw) <- 1.0
+  print(network_topo_raw)
+  
   first_point <- head(core_wind, 1)
-  first_point <- rep(0, n_nodes)
+  # first_point <- rep(0, n_nodes)
+  time_init <- Sys.time() 
+  # generated_paths <- lapply(X = levy_increment_sims, FUN =
+  #                             function(x){
+  #                               ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)
+  #                             })
+  num_cores <- detectCores()-1
+  cl <- makeCluster(num_cores)
+  clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims", "network_topo_raw",
+                              "beta", "mesh_size", "n_nodes", "GrouMLE", "NodeMLELong", "CoreNodeMLE", "RowNormalised"
+                              ))
+  generated_paths <- parLapply(
+    cl,
+    levy_increment_sims,
+    function(x){ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)}
+  )
+  
+  # generated_paths<- rlist::list.save(generated_paths, paste(network_types_name[index_network], '.RData', sep = ''))
+  # generated_paths <- rlist::list.load(paste(network_types_name[index_network], '.RData', sep = ''))
+  print('paths generated in')
+  print(Sys.time()-time_init)
+  
+  
+  # starting from topology
+  #network_topo[which(abs(network_topo) > 1e-16)] <- 1
+  beta <- 0.001
+  n_row_generated <- nrow(generated_paths[[1]])
+  
+  clusterExport(cl, varlist=c("n_row_generated"))
+  generated_fit <- lapply(X = generated_paths,
+    FUN =
+      function(x){
+        GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
+                adj = as.matrix(network_topo_raw),
+                data = x,
+                thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                mode = 'network',
+                output = 'vector')
+      }
+  )
+  # generated_fit <- parLapply(
+  #   cl,
+  #   generated_paths,
+  #   function(x){
+  #     GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
+  #             adj = as.matrix(network_topo),
+  #             data = x,
+  #             thresholds = rep(10000, n_nodes), # mesh_size^beta
+  #             mode = 'network',
+  #             output = 'vector')
+  #   }
+  # )
+  stopCluster(cl)
+  print('fit generated')
+  gen_fit_matrix <- matrix(unlist(generated_fit), ncol = 2, byrow = T)
+  network_study[[paste( network_types_name[index_network], '_t1', sep = '')]] <- gen_fit_matrix[,1]
+  network_study[[paste(network_types_name[index_network], '_t2', sep = '')]] <- gen_fit_matrix[,2]
+  index_network <- index_network + 1
+}
+
+vioplot::vioplot(network_study$polymer_mles_t2/theta_2,
+                 network_study$lattice_mles_t2/theta_2,
+                 network_study$fc_mles_t2/theta_2,
+                 network_study$re_europe_mles_t2/theta_2)
+theta_2
+
+vioplot::vioplot(network_study$polymer_mles_t1/theta_1,
+                 network_study$lattice_mles_t1/theta_1,
+                 network_study$fc_mles_t1/theta_1,
+                 network_study$re_europe_mles_t1/theta_1)
+theta_1
+ 
+#######################################################################
+###################### SIMULATION STUDY - IEEE ########################
+#######################################################################
+
+pipe_layout_39 <- read.csv(file="~/GitHub/r-continuous-network/data/standard-networks/39_pipe_layout.csv")
+pipe_layout_39_dt <- data.frame("from" = pipe_layout_39$Bus_i, "to" = pipe_layout_39$Bus_j)
+pipe_layout_39_topo <- igraph::graph.data.frame(d = pipe_layout_39_dt, directed = FALSE)
+pipe_layout_39_adj <- igraph::as_adjacency_matrix(pipe_layout_39_topo, sparse = AS_SPARSE)
+
+pipe_layout_23 <- read.csv(file="~/GitHub/r-continuous-network/data/standard-networks/pipe_layout.csv")
+pipe_layout_23_dt <- data.frame("from" = pipe_layout_23$Gnode_m, "to" = pipe_layout_23$Gnode_n)
+pipe_layout_23_topo <- igraph::graph.data.frame(d = pipe_layout_23_dt, directed = FALSE)
+pipe_layout_23_adj <- igraph::as_adjacency_matrix(pipe_layout_23_topo, sparse = AS_SPARSE)
+pipe_layout_23_adj[pipe_layout_23_adj!= 0] <- 1 # rm those counted twice
+
+set.seed(42)
+n_paths <- 500
+N <- 10000
+levy_increment_sims <- list()
+for(i in 1:n_paths){
+  levy_increment_sims[[i]] <- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
+}
+
+# choosing network type
+network_types <- list(pipe_layout_39_adj, pipe_layout_23_adj)
+network_types_name <- c('pipe_layout_39_mles', 'pipe_layout_23_mles')
+network_nodes <- c(39, 23)
+
+index_network <- 1
+# network_study <- list()
+
+theta_1 <- mle_theta_vector[1]
+theta_2 <- mle_theta_vector[2]
+
+for(f_network in network_types){
+  warning('TODO: implement file saves')
+  print(index_network)
+  n_nodes_network <- network_nodes[index_network]
+  network_topo <- network_types[index_network][[1]] %>% as.matrix
+  network_topo <- RowNormalised(network_topo)
+  diag(network_topo) <- theta_2
+  
+  first_point <- head(core_wind, 1)
+  first_point <- rep(0, n_nodes_network)
   time_init <- Sys.time() 
   # generated_paths <- lapply(X = levy_increment_sims, FUN =
   #                             function(x){
@@ -156,12 +282,12 @@ for(f_network in network_types){
   num_cores <- detectCores()-1
   cl <- makeCluster(num_cores)
   clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims",
-                              "beta", "mesh_size", "n_nodes", "GrouMLE", "NodeMLELong", "CoreNodeMLE", "RowNormalised"
-                              ))
-   generated_paths <- parLapply(
+                              "beta", "mesh_size", "n_nodes_network", "GrouMLE", "NodeMLELong", "CoreNodeMLE", "RowNormalised"))
+  cat('levy_increment_sims', levy_increment_sims[[1]] %>% dim, '\n')
+  generated_paths <- parLapply(
     cl,
     levy_increment_sims,
-    function(x){ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)}
+    function(x){ConstructPath(nw_topo = network_topo, noise = x[,1:n_nodes_network], delta_time = mesh_size, first_point)}
   )
   
   # generated_paths<- rlist::list.save(generated_paths, paste(network_types_name[index_network], '.RData', sep = ''))
@@ -193,7 +319,7 @@ for(f_network in network_types){
       GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
               adj = as.matrix(network_topo),
               data = x,
-              thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+              thresholds = rep(mesh_size^beta, n_nodes_network), # mesh_size^beta
               mode = 'network',
               output = 'vector')
     }
@@ -201,24 +327,8 @@ for(f_network in network_types){
   stopCluster(cl)
   print('fit generated')
   gen_fit_matrix <- matrix(unlist(generated_fit), ncol = 2, byrow = T)
-  network_study[[paste('network_',index_network,'_t1', sep = '')]] <- gen_fit_matrix[,1]
-  network_study[[paste('network_',index_network,'_t2', sep = '')]] <- gen_fit_matrix[,2]
+  network_study[[paste('network_', network_types_name[index_network], '_t1', sep = '')]] <- gen_fit_matrix[,1]
+  network_study[[paste('network_', network_types_name[index_network], '_t2', sep = '')]] <- gen_fit_matrix[,2]
   index_network <- index_network + 1
 }
 
-vioplot::vioplot(network_study$network_1_t2, network_study$network_2_t2, network_study$network_3_t2, network_study$network_4_t2)
-
-#######################################################################
-###################### SIMULATION STUDY - IEEE ########################
-#######################################################################
-
-pipe_layout_39 <- read.csv(file="~/GitHub/r-continuous-network/data/standard-networks/39_pipe_layout.csv")
-pipe_layout_39_dt <- data.frame("from" = pipe_layout_39$Bus_i, "to" = pipe_layout_39$Bus_j)
-pipe_layout_39_topo <- igraph::graph.data.frame(d = pipe_layout_39_dt, directed = FALSE)
-pipe_layout_39_adj <- igraph::as_adjacency_matrix(pipe_layout_39_topo, sparse = AS_SPARSE)
-
-pipe_layout_23 <- read.csv(file="~/GitHub/r-continuous-network/data/standard-networks/pipe_layout.csv")
-pipe_layout_23_dt <- data.frame("from" = pipe_layout_23$Gnode_m, "to" = pipe_layout_23$Gnode_n)
-pipe_layout_23_topo <- igraph::graph.data.frame(d = pipe_layout_23_dt, directed = FALSE)
-pipe_layout_23_adj <- igraph::as_adjacency_matrix(pipe_layout_23_topo, sparse = AS_SPARSE)
-pipe_layout_23_adj[pipe_layout_23_adj!= 0] <- 1 # rm those counted twice
