@@ -108,6 +108,7 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
   diag(adj_normalised) <- 0.0 # to be sure
   
   node_mle <- NodeMLELong(times, data, thresholds = thresholds, div = div, output = "vector")
+  
   if(mode == "node"){
     if(output == "vector"){
       d_a <- c(diag(n_nodes)+adj_normalised)
@@ -137,7 +138,15 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
   }
 }
 
-n_nodes <- 2
+FasenRegression <- function(data){
+  data <- as.matrix(data)
+  data_without_first <- data[-1,]
+  data_without_last <- data[-nrow(data),]
+  sub <- t(data_without_last) %*% data_without_last
+  return(t(data_without_first) %*% data_without_last %*% solve(sub))
+}
+
+n_nodes <- 10
 n_sample <- 500000
 set.seed(42)
 adj_test <- diag(n_nodes)
@@ -146,13 +155,18 @@ adj_test[2,1] <- 0.5
 mesh_size <- 0.01
 sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1*mesh_size^(1/2)), ncol=n_nodes), rep(0, n_nodes), mesh_size)
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
+adj_test
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "vector")
 
-FasenRegression <- function(data){
-  data <- as.matrix(data)
-  data_without_first <- data[-1,]
-  data_without_last <- data[-nrow(data),]
-  sub <- t(data_without_last) %*% data_without_last
-  return(t(data_without_first) %*% data_without_last %*% solve(sub))
-}
+
+adj_test <- diag(n_nodes)
+adj_test[2,1] <- 0.4
+adj_test[1,2] <- 0.4
+adj_test[1,3] <- 0.4
+
+mesh_size <- 0.01
+sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1*mesh_size^(1/2)), ncol=n_nodes), rep(0, n_nodes), mesh_size)
+GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
+GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "vector")
+
 

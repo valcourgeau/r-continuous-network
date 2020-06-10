@@ -67,14 +67,14 @@ for(i in 1:n_paths){
   levy_increment_sims[[i]]<- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
 }
 
-DO_PARALLEL <- TRUE
+DO_PARALLEL <- FALSE
 
 # choosing network type
 network_types <- list(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
 network_types_name <- c('polymer_mles', 'lattice_mles', 'fc_mles', 're_europe_mles')
 
 index_network <- 1
-beta_study <- list()
+fasen_study <- list()
 
 theta_1 <- mle_theta_vector[1]
 theta_2 <- mle_theta_vector[2]
@@ -95,23 +95,34 @@ for(f_network in network_types){
   first_point <- head(core_wind, 1)
   time_init <- Sys.time() 
   
+  beta <- 0.001
   if(DO_PARALLEL){
     num_cores <- detectCores()-1
     cl <- makeCluster(num_cores)
     clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims",
-                                "network_topo_raw", "beta", "mesh_size", "n_nodes", "GrouMLE",
+                                "network_topo_raw", "mesh_size", "n_nodes", "GrouMLE",
                                 "NodeMLELong", "CoreNodeMLE", "RowNormalised"))
     generated_paths <- parLapply(
       cl,
       levy_increment_sims,
-      function(x){ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)}
+      function(x){
+        lapply(
+          seq(from=1.0, to=10, length.out = 10),
+          function(sig){
+            ConstructPath(nw_topo = network_topo, noise = sig*x, delta_time = mesh_size, first_point)
+          })
+      }
     )
   }else{
     generated_paths <- lapply(
       X = levy_increment_sims,
       FUN =
         function(x){
-          ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)
+          lapply(
+            seq(from=1.0, to=10, length.out = 10),
+            function(sig){
+              ConstructPath(nw_topo = network_topo, noise = sig*x, delta_time = mesh_size, first_point)
+            })
         }
     )
   }
@@ -122,25 +133,28 @@ for(f_network in network_types){
   
   # starting from topology
   #network_topo[which(abs(network_topo) > 1e-16)] <- 1
-  beta <- 0.001
-  beta_seq <- seq(0.001, to = 0.499, length.out = 10)
-  n_row_generated <- nrow(generated_paths[[1]])
+  n_row_generated <- nrow(generated_paths[[1]][[1]])
   
   if(DO_PARALLEL){
-    clusterExport(cl, varlist=c("n_row_generated", "beta_seq"))
+    clusterExport(cl, varlist=c("n_row_generated"))
     generated_fit <- parLapply(
       cl,
       generated_paths,
-      function(x){
+      function(x_with_differen_sigmas){
         lapply(
-          beta_seq,
-          function(beta_value){
-            GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
-                    adj = as.matrix(network_topo),
-                    data = x,
-                    thresholds = rep(mesh_size^beta_value, n_nodes), # mesh_size^beta
-                    mode = 'network',
-                    output = 'vector')
+          x_with_differen_sigmas,
+          function(x){
+            gen_fit <- list()
+            gen_fit[['mle']] <- GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
+                                        adj = as.matrix(network_topo), # TODO network_topo_raw???
+                                        data = x,
+                                        thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                                        mode = 'node',
+                                        output = 'matrix')
+            gen_fit[['fasen']] <- FasenRegression(x) * network_topo_raw
+            gen_fit[['truth']] <- network_topo
+            
+            return(gen_fit)
           }
         )
       }
@@ -150,22 +164,26 @@ for(f_network in network_types){
     generated_fit <- lapply(
       X = generated_paths,
       FUN =
-        function(x){
+        function(x_with_differen_sigmas){
           lapply(
-            beta_seq,
-            function(beta_value){
-              GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
-                      adj = as.matrix(network_topo),
-                      data = x,
-                      thresholds = rep(mesh_size^beta_value, n_nodes), # mesh_size^beta
-                      mode = 'network',
-                      output = 'vector')
+            x_with_differen_sigmas,
+            function(x){
+              gen_fit <- list()
+              gen_fit[['mle']] <- GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
+                                          adj = as.matrix(network_topo),
+                                          data = x,
+                                          thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                                          mode = 'node',
+                                          output = 'matrix')
+              gen_fit[['fasen']] <- FasenRegression(x) * network_topo_raw
+              gen_fit[['truth']] <- network_topo
+              return(gen_fit)
             }
-        )
-      }
+          )
+        }
     )
   }
   print('fit generated')
-  beta_study[[index_network]] <- generated_fit
+  fasen_study[[index_network]] <- generated_fit
   index_network <- index_network + 1
 }
