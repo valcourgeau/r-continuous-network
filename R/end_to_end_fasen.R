@@ -60,8 +60,8 @@ ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$incr
 
 
 set.seed(42)
-n_paths <- 11
-N <- 2000
+n_paths <- 50
+N <- 20000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
   levy_increment_sims[[i]]<- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
@@ -78,6 +78,10 @@ fasen_study <- list()
 
 theta_1 <- mle_theta_vector[1]
 theta_2 <- mle_theta_vector[2]
+
+sig_division <- 5
+sig_min <- 0.5
+sig_max <- 10
 
 for(f_network in network_types){
   warning('TODO: implement file saves')
@@ -96,18 +100,20 @@ for(f_network in network_types){
   time_init <- Sys.time() 
   
   beta <- 0.001
+  sig_sequence <- seq(from=sig_min, to=sig_max, length.out = sig_division)
+  
   if(DO_PARALLEL){
     num_cores <- detectCores()-1
     cl <- makeCluster(num_cores)
     clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims",
-                                "network_topo_raw", "mesh_size", "n_nodes", "GrouMLE",
+                                "network_topo_raw", "mesh_size", "n_nodes", "GrouMLE", "sig_sequence",
                                 "NodeMLELong", "CoreNodeMLE", "RowNormalised"))
     generated_paths <- parLapply(
       cl,
       levy_increment_sims,
       function(x){
         lapply(
-          seq(from=1.0, to=10, length.out = 10),
+          sig_sequence,
           function(sig){
             ConstructPath(nw_topo = network_topo, noise = sig*x, delta_time = mesh_size, first_point)
           })
@@ -119,8 +125,9 @@ for(f_network in network_types){
       FUN =
         function(x){
           lapply(
-            seq(from=1.0, to=10, length.out = 10),
+            sig_sequence,
             function(sig){
+              print(sig)
               ConstructPath(nw_topo = network_topo, noise = sig*x, delta_time = mesh_size, first_point)
             })
         }
@@ -135,23 +142,24 @@ for(f_network in network_types){
   #network_topo[which(abs(network_topo) > 1e-16)] <- 1
   n_row_generated <- nrow(generated_paths[[1]][[1]])
   
+  time_init <- Sys.time()
   if(DO_PARALLEL){
     clusterExport(cl, varlist=c("n_row_generated"))
     generated_fit <- parLapply(
       cl,
       generated_paths,
-      function(x_with_differen_sigmas){
+      fun = function(x_with_differen_sigmas){
         lapply(
           x_with_differen_sigmas,
           function(x){
             gen_fit <- list()
             gen_fit[['mle']] <- GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
-                                        adj = as.matrix(network_topo), # TODO network_topo_raw???
+                                        adj = as.matrix(network_topo_raw), # TODO network_topo_raw???
                                         data = x,
                                         thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
                                         mode = 'node',
                                         output = 'matrix')
-            gen_fit[['fasen']] <- FasenRegression(x) * network_topo_raw
+            gen_fit[['fasen']] <- FasenRegression(x)
             gen_fit[['truth']] <- network_topo
             
             return(gen_fit)
@@ -175,7 +183,7 @@ for(f_network in network_types){
                                           thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
                                           mode = 'node',
                                           output = 'matrix')
-              gen_fit[['fasen']] <- FasenRegression(x) * network_topo_raw
+              gen_fit[['fasen']] <- FasenRegression(x)
               gen_fit[['truth']] <- network_topo
               return(gen_fit)
             }
@@ -184,8 +192,32 @@ for(f_network in network_types){
     )
   }
   print('fit generated')
+  print(Sys.time()-time_init)
   fasen_study[[index_network]] <- generated_fit
   index_network <- index_network + 1
 }
 
-fasen_study[[1]][[11]]
+fasen_array_mle <- array(dim=c(4, n_paths, sig_division))
+fasen_array_ls <- array(dim=c(4, n_paths, sig_division))
+expm_truth <- as.matrix(Matrix::expm(-fasen_study[[1]][[1]][[1]]$truth))
+for(i in 1:4){
+  for(j in 1:n_paths){
+    for(k in 1:sig_division){
+      expm_mle <- as.matrix(Matrix::expm(-fasen_study[[i]][[j]][[k]]$mle))
+      expm_ls <- fasen_study[[i]][[j]][[k]]$fasen
+      
+      fasen_array_mle[i,j,k] <- sqrt(sum((expm_mle-expm_truth)^2))/sqrt(sum(expm_truth^2))
+      fasen_array_ls[i,j,k] <- sqrt(sum((expm_ls-expm_truth)^2))/sqrt(sum(expm_truth^2))
+    }
+  }
+}
+
+x_matplot <- matrix(rep(seq(from=sig_min, to=sig_max, length.out = sig_division), 4), nrow=4, byrow = T)
+matplot(x=t(x_matplot), t(apply(fasen_array_mle, c(1,3), mean)), type = "l", col=c(1,2,3,4))
+legend(1, 1.5, network_types_name,
+       pch=22,
+       col = 1:4)
+matplot(x=t(x_matplot), t(apply(fasen_array_ls, c(1,3), mean)), type = "b", col=c(1,2,3,4))
+legend(1, 1.5, network_types_name,
+       pch=22,
+       col = 1:4)
