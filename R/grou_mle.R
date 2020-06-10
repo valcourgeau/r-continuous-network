@@ -37,11 +37,11 @@ CoreNodeMLE <- function(times, data, thresholds=NA){
   wo_last <- data[-n_data,]
  
   kron_delta_data <- lapply(
-    1:ncol(delta_data), 
+    1:ncol(wo_last), 
     function(i){
-      tmp <- t(wo_last*as.vector(delta_data[,i])) # transpose for the filtering
+      tmp <- t(delta_data*as.vector(wo_last[,i])) # transpose for the filtering
       if(!any(is.na(thresholds))){
-        filters <- apply(abs(delta_data), 1, '<=', thresholds)
+        filters <- apply(abs(delta_data), 1, '<=', rep(thresholds[i], n_nodes))
         filters <- t(filters)
         tmp <- tmp * as.vector(filters)
       }
@@ -79,6 +79,8 @@ NodeMLELong <- function(times, data, thresholds, div=1e5, output="vector"){
   )
   
   numerator <- Reduce('+', lapply(collection_num_denom, function(coll){coll$numerator}))
+  sd_numerator <- sd(numerator)
+  numerator <- numerator / sd_numerator
   denominator <- Reduce('+', lapply(collection_num_denom, function(coll){coll$denominator}))
   sd_denominator <- sd(denominator)
   
@@ -87,7 +89,7 @@ NodeMLELong <- function(times, data, thresholds, div=1e5, output="vector"){
   inv_denominator <- inv_denominator / sd_denominator
   numerator <- matrix(numerator, nrow = n_nodes, byrow = FALSE)
   
-  mle <- apply(numerator, MARGIN = 2, function(x){- inv_denominator %*% x})
+  mle <- apply(numerator, MARGIN = 2, function(x){- inv_denominator %*% x}) * sd_numerator
   if(output == "vector"){
     return(c(mle))
   }else{
@@ -110,6 +112,7 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
   node_mle <- NodeMLELong(times, data, thresholds = thresholds, div = div, output = "vector")
   
   if(mode == "node"){
+    adj_normalised[adj_normalised!=0] <- 1
     if(output == "vector"){
       d_a <- c(diag(n_nodes)+adj_normalised)
       return(d_a*node_mle)
@@ -124,7 +127,7 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
     if(a_l2 < .Machine$double.eps){
       theta_1 <- 0.0
     }else{
-      theta_1 <- (c(t(adj_normalised)) %*% node_mle)[1,1] / a_l2
+      theta_1 <- (c(adj_normalised) %*% node_mle)[1,1] / a_l2
     }
     
     theta_2 <- (c(diag(n_nodes)) %*% node_mle)[1,1] / n_nodes
@@ -146,8 +149,8 @@ FasenRegression <- function(data){
   return(t(data_without_first) %*% data_without_last %*% solve(sub))
 }
 
-n_nodes <- 10
-n_sample <- 500000
+n_nodes <- 5
+n_sample <- 50000
 set.seed(42)
 adj_test <- diag(n_nodes)
 adj_test[2,1] <- 0.5
@@ -157,12 +160,12 @@ sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1*mesh_
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
 adj_test
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "vector")
-
+GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "matrix")
 
 adj_test <- diag(n_nodes)
 adj_test[2,1] <- 0.4
-adj_test[1,2] <- 0.4
-adj_test[1,3] <- 0.4
+adj_test[1,2] <- 0.2
+adj_test[1,3] <- 0.2
 
 mesh_size <- 0.01
 sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1*mesh_size^(1/2)), ncol=n_nodes), rep(0, n_nodes), mesh_size)

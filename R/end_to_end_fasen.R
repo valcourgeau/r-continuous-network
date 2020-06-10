@@ -60,7 +60,7 @@ ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$incr
 
 
 set.seed(42)
-n_paths <- 10
+n_paths <- 11
 N <- 2000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
@@ -187,3 +187,5 @@ for(f_network in network_types){
   fasen_study[[index_network]] <- generated_fit
   index_network <- index_network + 1
 }
+
+fasen_study[[1]][[11]]

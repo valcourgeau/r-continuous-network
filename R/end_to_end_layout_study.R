@@ -18,7 +18,7 @@ AS_SPARSE <- FALSE
 # Functions and procedures to clean the data
 data_path <- "~/GitHub/r-continuous-network/data/re-europe/"
 n_df_load <- 25000
-n_nodes <- 50
+n_nodes <- 5
 df_load <- data.table::fread(paste(data_path, "Nodal_TS/wind_signal_COSMO.csv", sep=""), nrows = n_df_load+10)[,2:(n_nodes+1)]
 df_load <- df_load[-c(1:10),]
 df_load <- as.matrix(df_load)
@@ -118,14 +118,14 @@ for(i in c(3)){ # i is the index of the plotted node
 #######################################################################
 
 set.seed(42)
-n_paths <- 20
-N <- 10000
+n_paths <- 500
+N <- 40000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
   levy_increment_sims[[i]] <- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
 }
 
-DO_PARALLEL <- TRUE
+DO_PARALLEL <- T
 
 # choosing network type
 network_types <- list(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
@@ -184,12 +184,17 @@ for(f_network in network_types){
   beta <- 0.001
   n_row_generated <- nrow(generated_paths[[1]])
   
+  print('network_topo')
+  print(network_topo)
+  
   if(DO_PARALLEL){
     clusterExport(cl, varlist=c("n_row_generated"))
     generated_fit <- parLapply(
       cl,
       generated_paths,
       function(x){
+        print('network_topo')
+        print(network_topo)
         GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
                 adj = as.matrix(network_topo_raw),
                 data = x,
@@ -203,12 +208,23 @@ for(f_network in network_types){
     generated_fit <- lapply(X = generated_paths,
                             FUN =
                               function(x){
+                                # node <- GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
+                                #                 adj = as.matrix(network_topo_raw),
+                                #                 data = x,
+                                #                 thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                                #                 mode = 'node',
+                                #                 output = 'matrix')
+                                # print('node')
+                                # print(node)
+                                # cat('RMSE', sqrt(sum(((node[network_topo!=0]-network_topo[network_topo!=0])/network_topo[network_topo!=0])^2)), '\n')
+                                # cat('Ratio norms', sqrt(sum((node-network_topo)^2))/sqrt(sum(network_topo^2)), '\n')
                                 GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
                                         adj = as.matrix(network_topo_raw),
                                         data = x,
                                         thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
                                         mode = 'network',
                                         output = 'vector')
+                               
                               }
     )
   }
