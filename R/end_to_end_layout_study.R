@@ -18,7 +18,7 @@ AS_SPARSE <- FALSE
 # Functions and procedures to clean the data
 data_path <- "~/GitHub/r-continuous-network/data/re-europe/"
 n_df_load <- 25000
-n_nodes <- 50
+n_nodes <- 5
 df_load <- data.table::fread(paste(data_path, "Nodal_TS/wind_signal_COSMO.csv", sep=""), nrows = n_df_load+10)[,2:(n_nodes+1)]
 df_load <- df_load[-c(1:10),]
 df_load <- as.matrix(df_load)
@@ -118,16 +118,17 @@ for(i in c(3)){ # i is the index of the plotted node
 #######################################################################
 
 set.seed(42)
-n_paths <- 20
-N <- 10000
+n_paths <- 3
+N <- 100000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
   levy_increment_sims[[i]] <- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
 }
 
-DO_PARALLEL <- TRUE
+DO_PARALLEL <- FALSE
 
 # choosing network type
+# n_nodes <- 5
 network_types <- list(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
 network_types_name <- c('polymer_mles', 'lattice_mles', 'fc_mles', 're_europe_mles')
 
@@ -151,8 +152,8 @@ for(f_network in network_types){
   network_topo_raw <- RowNormalised(network_topo)
   diag(network_topo_raw) <- 1.0
   
-  first_point <- head(core_wind, 1)
-  # first_point <- rep(0, n_nodes)
+  # first_point <- head(core_wind, 1)
+  first_point <- rep(0, n_nodes)
   time_init <- Sys.time() 
   if(DO_PARALLEL){
     num_cores <- detectCores()-1
@@ -183,7 +184,6 @@ for(f_network in network_types){
   #network_topo[which(abs(network_topo) > 1e-16)] <- 1
   beta <- 0.001
   n_row_generated <- nrow(generated_paths[[1]])
-  
   if(DO_PARALLEL){
     clusterExport(cl, varlist=c("n_row_generated"))
     generated_fit <- parLapply(
@@ -209,6 +209,8 @@ for(f_network in network_types){
                                         thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
                                         mode = 'network',
                                         output = 'vector')
+                                print('network_topo')
+                                print(network_topo)
                               }
     )
   }

@@ -37,9 +37,9 @@ CoreNodeMLE <- function(times, data, thresholds=NA){
   wo_last <- data[-n_data,]
  
   kron_delta_data <- lapply(
-    1:ncol(delta_data), 
+    1:ncol(wo_last), 
     function(i){
-      tmp <- t(wo_last*as.vector(delta_data[,i])) # transpose for the filtering
+      tmp <- t(delta_data * as.vector(wo_last[,i])) # transpose for the filtering
       if(!any(is.na(thresholds))){
         filters <- apply(abs(delta_data), 1, '<=', thresholds)
         filters <- t(filters)
@@ -79,6 +79,8 @@ NodeMLELong <- function(times, data, thresholds, div=1e5, output="vector"){
   )
   
   numerator <- Reduce('+', lapply(collection_num_denom, function(coll){coll$numerator}))
+  # print('numerator')
+  # print(numerator)
   denominator <- Reduce('+', lapply(collection_num_denom, function(coll){coll$denominator}))
   sd_denominator <- sd(denominator)
   
@@ -108,15 +110,21 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
   diag(adj_normalised) <- 0.0 # to be sure
   
   node_mle <- NodeMLELong(times, data, thresholds = thresholds, div = div, output = "vector")
-  
+  print('adj_normalised')
+  print(adj_normalised)
+  print('node_mle')
+  print(node_mle)
+  print(matrix(node_mle, n_nodes, n_nodes))
+  # print(adj_normalised)
+  # print(c(diag(n_nodes)+adj_normalised))
   if(mode == "node"){
+    adj_normalised[adj_normalised != 0] <- 1
+    full_adj_normalised <- diag(n_nodes)+adj_normalised
     if(output == "vector"){
-      d_a <- c(diag(n_nodes)+adj_normalised)
-      return(d_a*node_mle)
+      return(c(full_adj_normalised) * node_mle)
     }else{
       if(output == "matrix"){
-        adj_full <- diag(n_nodes)+adj_normalised
-        return(adj_full * matrix(node_mle, n_nodes, n_nodes, byrow = F))
+        return(full_adj_normalised * matrix(node_mle, n_nodes, n_nodes, byrow = F))
       }
     }
   }else{
@@ -124,7 +132,7 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
     if(a_l2 < .Machine$double.eps){
       theta_1 <- 0.0
     }else{
-      theta_1 <- (c(t(adj_normalised)) %*% node_mle)[1,1] / a_l2
+      theta_1 <- (c(adj_normalised) %*% node_mle)[1,1] / a_l2
     }
     
     theta_2 <- (c(diag(n_nodes)) %*% node_mle)[1,1] / n_nodes
@@ -146,8 +154,8 @@ FasenRegression <- function(data){
   return(t(data_without_first) %*% data_without_last %*% solve(sub))
 }
 
-n_nodes <- 10
-n_sample <- 500000
+n_nodes <- 5
+n_sample <- 50000
 set.seed(42)
 adj_test <- diag(n_nodes)
 adj_test[2,1] <- 0.5
@@ -155,18 +163,20 @@ adj_test[2,1] <- 0.5
 mesh_size <- 0.01
 sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1*mesh_size^(1/2)), ncol=n_nodes), rep(0, n_nodes), mesh_size)
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
-adj_test
+GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "vector")
+GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "matrix")
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "vector")
-
+adj_test
 
 adj_test <- diag(n_nodes)
-adj_test[2,1] <- 0.4
-adj_test[1,2] <- 0.4
-adj_test[1,3] <- 0.4
-
+adj_test[2,1] <- -0.8
+adj_test[1,2] <- -0.4
+adj_test[1,3] <- -0.4
+adj_test
 mesh_size <- 0.01
+set.seed(42)
 sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1*mesh_size^(1/2)), ncol=n_nodes), rep(0, n_nodes), mesh_size)
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
+GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "vector")
+GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "matrix")
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "vector")
-
-
