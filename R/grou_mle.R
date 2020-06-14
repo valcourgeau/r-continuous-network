@@ -49,7 +49,7 @@ CoreNodeMLE <- function(times, data, thresholds=NA){
       
       return(colSums(t(tmp)))
     })
-  numerator <- do.call(cbind, kron_delta_data)
+  numerator <- t(do.call(cbind, kron_delta_data))
   denominator <- t(wo_last * as.vector(delta_t)) %*% wo_last
   
   return(list(numerator=numerator, denominator=denominator))
@@ -123,14 +123,18 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
       }
     }
   }else{
-    a_l2 <- sum(adj_normalised^2)
+    a_l2 <- sum(adj_normalised)
+    adj_ones <- adj_normalised
+    adj_ones[adj_ones!=0] <- 1
+    diag(adj_ones) <- 0
+    
     if(a_l2 < .Machine$double.eps){
       theta_1 <- 0.0
     }else{
-      theta_1 <- (c(adj_normalised) %*% node_mle)[1,1] / a_l2
+      theta_1 <- (as.vector(adj_ones) %*% node_mle) / a_l2
     }
     
-    theta_2 <- (c(diag(n_nodes)) %*% node_mle)[1,1] / n_nodes
+    theta_2 <- (c(diag(n_nodes)) %*% node_mle) / n_nodes
     if(output == "vector"){
       return(c(theta_1, theta_2))
     }else{
@@ -149,7 +153,7 @@ FasenRegression <- function(data){
   return(t(data_without_first) %*% data_without_last %*% solve(sub))
 }
 
-n_nodes <- 5
+n_nodes <- 50
 n_sample <- 50000
 set.seed(42)
 adj_test <- diag(n_nodes)

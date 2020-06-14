@@ -9,7 +9,7 @@ source("~/GitHub/r-continuous-network/R/path_generation.R")
 source("~/GitHub/r-continuous-network/R/grou_mle.R")
 
 # We do not use the load data but wind since load is too correlated and not very random
-AS_SPARSE <- FALSE
+AS_SPARSE <- F
 
 #######################################################################
 ##################### DATA PREPARATION ################################
@@ -18,7 +18,7 @@ AS_SPARSE <- FALSE
 # Functions and procedures to clean the data
 data_path <- "~/GitHub/r-continuous-network/data/re-europe/"
 n_df_load <- 25000
-n_nodes <- 5
+n_nodes <- 50
 df_load <- data.table::fread(paste(data_path, "Nodal_TS/wind_signal_COSMO.csv", sep=""), nrows = n_df_load+10)[,2:(n_nodes+1)]
 df_load <- df_load[-c(1:10),]
 df_load <- as.matrix(df_load)
@@ -46,6 +46,7 @@ adj_grid <- as.matrix(adj_grid)
 mesh_size <- 2/24
 observed_times <- seq(0, by=mesh_size, length.out = n_df_load)
 cat('Asymptotic horizon:', mesh_size * n_df_load)
+print(adj_grid)
 mle_theta_matrix <- GrouMLE(times=observed_times,
                             data=core_wind, adj = adj_grid, div = 1e3,
                             mode="network", output = "matrix")
@@ -117,9 +118,9 @@ for(i in c(3)){ # i is the index of the plotted node
 ################ SIMULATION STUDY - ARTIFICIAL DATA ###################
 #######################################################################
 
-set.seed(42)
-n_paths <- 500
-N <- 40000
+set.seed(45)
+n_paths <- 100
+N <- 10000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
   levy_increment_sims[[i]] <- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
@@ -130,6 +131,8 @@ DO_PARALLEL <- T
 # choosing network type
 network_types <- list(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
 network_types_name <- c('polymer_mles', 'lattice_mles', 'fc_mles', 're_europe_mles')
+# network_types <- list(PolymerNetwork, adj_grid)
+# network_types_name <- c('polymer_mles', 're_europe_mles')
 
 index_network <- 1
 network_study <- list()
@@ -140,13 +143,16 @@ theta_2 <- mle_theta_vector[2]
 for(f_network in network_types){
   warning('TODO: implement file saves')
   print(index_network)
-  if(index_network < 4){
+  if(index_network < length(network_types_name)){ # if not adj_grid, we generate an adj matrix
     network_topo <- f_network(d = n_nodes, theta_1 = theta_1, theta_2 = theta_2) %>% as.matrix
   }else{
     network_topo <- network_types[index_network][[1]] %>% as.matrix
   }
   network_topo <- RowNormalised(network_topo) * theta_1
   diag(network_topo) <- theta_2
+  
+  # print('network_topo')
+  # print(network_topo)
   
   network_topo_raw <- RowNormalised(network_topo)
   diag(network_topo_raw) <- 1.0
@@ -181,12 +187,9 @@ for(f_network in network_types){
   
   # starting from topology
   #network_topo[which(abs(network_topo) > 1e-16)] <- 1
-  beta <- 0.001
+  beta <- 0.4999
   n_row_generated <- nrow(generated_paths[[1]])
-  
-  print('network_topo')
-  print(network_topo)
-  
+  time_init <- Sys.time() 
   if(DO_PARALLEL){
     clusterExport(cl, varlist=c("n_row_generated"))
     generated_fit <- parLapply(
@@ -208,27 +211,19 @@ for(f_network in network_types){
     generated_fit <- lapply(X = generated_paths,
                             FUN =
                               function(x){
-                                # node <- GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
-                                #                 adj = as.matrix(network_topo_raw),
-                                #                 data = x,
-                                #                 thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
-                                #                 mode = 'node',
-                                #                 output = 'matrix')
-                                # print('node')
-                                # print(node)
-                                # cat('RMSE', sqrt(sum(((node[network_topo!=0]-network_topo[network_topo!=0])/network_topo[network_topo!=0])^2)), '\n')
-                                # cat('Ratio norms', sqrt(sum((node-network_topo)^2))/sqrt(sum(network_topo^2)), '\n')
-                                GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
-                                        adj = as.matrix(network_topo_raw),
-                                        data = x,
-                                        thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
-                                        mode = 'network',
-                                        output = 'vector')
-                               
+                                vect <- GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
+                                               adj = as.matrix(network_topo_raw),
+                                               data = x,
+                                               thresholds = rep(1000, n_nodes), # mesh_size^beta
+                                               mode = 'network',
+                                               output = 'vector')
+                               print(vect)
+                               return(vect)
                               }
     )
   }
   print('fit generated')
+  print(Sys.time()-time_init)
   gen_fit_matrix <- do.call(rbind, generated_fit)
   network_study[[paste( network_types_name[index_network], '_t1', sep = '')]] <- gen_fit_matrix[,1]
   network_study[[paste(network_types_name[index_network], '_t2', sep = '')]] <- gen_fit_matrix[,2]
@@ -254,7 +249,7 @@ vioplot::vioplot(network_study[c(7,1,3,5)], names = c('RE-Europe 50', 'Polymer',
                  col = colors2,
                  # col = c('#BE2B2B', '#2BBEBE', '#2BBEBE', '#2BBEBE'),
                  main=expression(theta[1]),
-                 cex.main=1.8, cex.names=1.5, cex.axis=1.5)
+                 cex.main=1.8, cex.names=1.5, cex.axis=1.5, ylim=c(2.5*theta_1, 0.5*theta_1))
 par(xpd = F) 
 abline(h=theta_1, lwd=2, lty=2)
 vioplot::vioplot(network_study[c(8,2,4,6)], names = c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete'),

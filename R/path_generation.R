@@ -72,21 +72,21 @@ CompoundPoissonJumps <- function(d, n, delta_time, jump_values){
   return(list(noise=results, jump_times=do.call(cbind, jump_times)))
 }
 
-n_jumps <- 1000
-cmpnd_poisson <- CompoundPoissonJumps(
-  d = 3, n = 1000, delta_time = 0.001,
-  jump_values=matrix(rep(rnorm(n_jumps, 0, 0.1), n_jumps*3), nrow = n_jumps, ncol = 3))
-cmpnd_poisson_noise <-  apply(cmpnd_poisson$noise, 2, cumsum)
-sig_matrix <- matrix(-.2, 3, 3)
-diag(sig_matrix) <- 1
-corr_bw <- CorrelatedBrownianNoise(sigma_matrix = sig_matrix, n = 1000, delta_time = 0.001)
-corr_bw <-  apply(corr_bw, 2, cumsum)
-noise_add <- cmpnd_poisson_noise + corr_bw
-
-plot(noise_add[,1], col='darkred', type='l', ylim=c(-3,3))
-lines(corr_bw[,1], col='red')
-abline(v=cmpnd_poisson$jump_times[,1]/0.001, col='darkred')
-lines(noise_add[,2], col='darkblue', type='l')
-lines(corr_bw[,2], col='blue')
-abline(v=cmpnd_poisson$jump_times[,2]/0.001, col='darkblue')
+# n_jumps <- 1000
+# cmpnd_poisson <- CompoundPoissonJumps(
+#   d = 3, n = 1000, delta_time = 0.001,
+#   jump_values=matrix(rep(rnorm(n_jumps, 0, 0.1), n_jumps*3), nrow = n_jumps, ncol = 3))
+# cmpnd_poisson_noise <-  apply(cmpnd_poisson$noise, 2, cumsum)
+# sig_matrix <- matrix(-.2, 3, 3)
+# diag(sig_matrix) <- 1
+# corr_bw <- CorrelatedBrownianNoise(sigma_matrix = sig_matrix, n = 1000, delta_time = 0.001)
+# corr_bw <-  apply(corr_bw, 2, cumsum)
+# noise_add <- cmpnd_poisson_noise + corr_bw
+# 
+# plot(noise_add[,1], col='darkred', type='l', ylim=c(-3,3))
+# lines(corr_bw[,1], col='red')
+# abline(v=cmpnd_poisson$jump_times[,1]/0.001, col='darkred')
+# lines(noise_add[,2], col='darkblue', type='l')
+# lines(corr_bw[,2], col='blue')
+# abline(v=cmpnd_poisson$jump_times[,2]/0.001, col='darkblue')
 
