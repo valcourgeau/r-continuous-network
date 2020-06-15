@@ -60,14 +60,14 @@ ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$incr
 
 
 set.seed(42)
-n_paths <- 50
-N <- 20000
+n_paths <- 2
+N <- 50000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
   levy_increment_sims[[i]]<- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
 }
 
-DO_PARALLEL <- FALSE
+DO_PARALLEL <- F
 
 # choosing network type
 network_types <- list(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
@@ -79,9 +79,9 @@ fasen_study <- list()
 theta_1 <- mle_theta_vector[1]
 theta_2 <- mle_theta_vector[2]
 
-sig_division <- 5
+sig_division <- 10
 sig_min <- 0.5
-sig_max <- 10
+sig_max <- 1e4
 
 for(f_network in network_types){
   warning('TODO: implement file saves')
@@ -100,7 +100,7 @@ for(f_network in network_types){
   time_init <- Sys.time() 
   
   beta <- 0.001
-  sig_sequence <- seq(from=sig_min, to=sig_max, length.out = sig_division)
+  sig_sequence <- seq(from=log(sig_min), to=log(sig_max), length.out = sig_division)
   
   if(DO_PARALLEL){
     num_cores <- detectCores()-1
@@ -115,7 +115,7 @@ for(f_network in network_types){
         lapply(
           sig_sequence,
           function(sig){
-            ConstructPath(nw_topo = network_topo, noise = sig*x, delta_time = mesh_size, first_point)
+            ConstructPath(nw_topo = network_topo, noise = exp(sig)*x, delta_time = mesh_size, first_point)
           })
       }
     )
@@ -128,7 +128,7 @@ for(f_network in network_types){
             sig_sequence,
             function(sig){
               print(sig)
-              ConstructPath(nw_topo = network_topo, noise = sig*x, delta_time = mesh_size, first_point)
+              ConstructPath(nw_topo = network_topo, noise = exp(sig)*x, delta_time = mesh_size, first_point)
             })
         }
     )
@@ -178,11 +178,15 @@ for(f_network in network_types){
             function(x){
               gen_fit <- list()
               gen_fit[['mle']] <- GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
-                                          adj = as.matrix(network_topo),
+                                          adj = as.matrix(network_topo_raw),
                                           data = x,
-                                          thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                                          thresholds = rep(1000, n_nodes), # mesh_size^beta
                                           mode = 'node',
                                           output = 'matrix')
+              print('mle')
+              print(gen_fit[['mle']])
+              print('network_topo')
+              print(network_topo)
               gen_fit[['fasen']] <- FasenRegression(x)
               gen_fit[['truth']] <- network_topo
               return(gen_fit)
@@ -212,12 +216,40 @@ for(i in 1:4){
   }
 }
 
-x_matplot <- matrix(rep(seq(from=sig_min, to=sig_max, length.out = sig_division), 4), nrow=4, byrow = T)
-matplot(x=t(x_matplot), t(apply(fasen_array_mle, c(1,3), mean)), type = "l", col=c(1,2,3,4))
-legend(1, 1.5, network_types_name,
-       pch=22,
-       col = 1:4)
-matplot(x=t(x_matplot), t(apply(fasen_array_ls, c(1,3), mean)), type = "b", col=c(1,2,3,4))
-legend(1, 1.5, network_types_name,
-       pch=22,
-       col = 1:4)
+colors <- c('#08605F', '#598381', '#8E936D', '#A2AD59')
+
+par(mfrow=c(1,2), mar = c(5,5,2.5,1))
+plot_unique_names <- c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete')
+
+plot_names <- as.vector(t(vapply(
+  c('MLE', 'LS'),
+  function(type_of_estimator){
+    vapply(plot_unique_names, function(x){paste(x, type_of_estimator)}, 'w')
+  }, rep('w', length(plot_unique_names)))))
+plot_names
+x_matplot <- matrix(rep(exp(sig_sequence), 4), nrow=4, byrow = T)
+matplot(x=t(x_matplot), t(apply(fasen_array_mle, c(1,3), mean))[,c(4,1:3)],
+        type = 'b', ylim=c(0.05, 10.5), log='x', pch=rep(22:25, each=2),  bty = "n",
+        lwd=rep(2, 4),  lty=rep(1, 4), col=colors, cex.axis=1.4, cex.lab=1.5,
+        xlab=expression(paste('Noise multiplicator ', sigma, ' (log)')), ylab='Relative Error Norm')
+legend(150, 7.0, plot_names, lty=rep(c(1, 2), 4), bty = "n",
+       pch=rep(22:25, each=2), lwd=rep(2, 8), cex=1.1,
+       col = rep(colors, each=2))
+matplot(x=t(x_matplot), t(apply(fasen_array_ls, c(1,3), mean))[,c(4,1:3)],
+        pch=23, type='b', add=T, lty=rep(2, 4), lwd=rep(2, 4), col=colors)
+# legend(1, 1.5, network_types_name,
+#        pch=22,
+#        col = 1:4)
+
+# subplot with zoom
+index_sub_plot <- x_matplot[1,] <= 150
+x_sub_matplot <- matrix(rep(x_matplot[1,][index_sub_plot], ncol(x_matplot)), nrow = ncol(x_matplot), byrow = T)
+matplot(x=t(x_sub_matplot), t(apply(fasen_array_mle, c(1,3), mean))[index_sub_plot,c(4,1:3)],
+        type = 'b', ylim=c(0.05, 8), log='xy', pch=22:25,  bty = "n",
+        lwd=rep(2, 4),  lty=rep(1, 4), col=colors, cex.axis=1.4, cex.lab=1.5,
+        xlab=expression(paste('Noise multiplicator ', sigma, ' (log)')), ylab='Relative Error Norm (log)')
+legend(10, .5, plot_names[(1:4-1)*2+1], lty=rep(c(1, 2), 4)[(1:4-1)*2+1],  bty = "n",
+       pch=22:25, lwd=rep(2, 8)[(1:4-1)*2+1], cex=1.1,
+       col = rep(colors, each=2)[(1:4-1)*2+1])
+
+

@@ -119,7 +119,7 @@ for(i in c(3)){ # i is the index of the plotted node
 #######################################################################
 
 set.seed(45)
-n_paths <- 100
+n_paths <- 50
 N <- 10000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
@@ -230,6 +230,7 @@ for(f_network in network_types){
   index_network <- index_network + 1
 }
 
+par(mfrow=c(1,2))
 vioplot::vioplot(network_study$polymer_mles_t2/theta_2,
                  network_study$lattice_mles_t2/theta_2,
                  network_study$fc_mles_t2/theta_2,
@@ -246,17 +247,17 @@ colors <- c('#08605F', '#177E89', '#598381', '#8E936D', '#A2AD59')
 colors2 <- c('#E88D67', '#CA7AB8', '#9999C3', '#7B8CDE')
 par(mfrow=c(2,1), mar=c(2,3,1.8,0.5))
 vioplot::vioplot(network_study[c(7,1,3,5)], names = c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete'),
-                 col = colors2,
+                 col = colors,
                  # col = c('#BE2B2B', '#2BBEBE', '#2BBEBE', '#2BBEBE'),
                  main=expression(theta[1]),
-                 cex.main=1.8, cex.names=1.5, cex.axis=1.5, ylim=c(2.5*theta_1, 0.5*theta_1))
+                 cex.main=1.8, cex.names=1.5, cex.axis=1.5)
 par(xpd = F) 
 abline(h=theta_1, lwd=2, lty=2)
 vioplot::vioplot(network_study[c(8,2,4,6)], names = c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete'),
-                 col =colors2,
+                 col =colors,
                  # col = c('#BE2B2B', '#2BBEBE', '#2BBEBE', '#2BBEBE'),
                  main=expression(theta[2]),
-                 cex.main=1.8, cex.names=1.5, cex.axis=1.5)
+                 cex.main=1.8, cex.names=1.5, cex.axis=1.5, ylim=theta_2*c(0.8,1.2))
 abline(h=theta_2, lwd=2, lty=2)
  
 #######################################################################

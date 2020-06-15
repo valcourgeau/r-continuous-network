@@ -110,7 +110,7 @@ GrouMLE <- function(times, data, adj=NA, thresholds=NA, div = 1e3, mode = "node"
   diag(adj_normalised) <- 0.0 # to be sure
   
   node_mle <- NodeMLELong(times, data, thresholds = thresholds, div = div, output = "vector")
-  
+  node_mle <- as.vector(t(matrix(node_mle, nrow=n_nodes)))
   if(mode == "node"){
     adj_normalised[adj_normalised!=0] <- 1
     if(output == "vector"){
@@ -172,6 +172,7 @@ adj_test[1,2] <- 0.2
 adj_test[1,3] <- 0.2
 
 mesh_size <- 0.01
+adj_test
 sample_path <- ConstructPath(adj_test, matrix(rnorm(n_sample*n_nodes, 0, 1*mesh_size^(1/2)), ncol=n_nodes), rep(0, n_nodes), mesh_size)
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="node", output = "matrix")
 GrouMLE(times=seq(0, by=mesh_size, length.out = n_sample), data=sample_path, adj = adj_test, div = 1e3, mode="network", output = "vector")
