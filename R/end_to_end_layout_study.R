@@ -343,9 +343,10 @@ dt_layout <- data.frame(
 )
 
 factor_topo <- factor(dt_layout$layout, level = c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete'))
-multiplicator <- 2.5
+multiplicator <- .4
 ggplot_theta_1_finite <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_topo, y=theta_1_finite, fill=layout)) +
   ggplot2::geom_violin() +
+  ggplot2::ggtitle(' ') +
   ggplot2::geom_boxplot(width=0.1, fill='white') +
   ggplot2::geom_hline(yintercept=theta_1, linetype="dashed", color = "black", size=1.1) +
   ggplot2::scale_fill_manual(values=colors[4:1]) + 
@@ -364,8 +365,9 @@ ggplot_theta_1_finite <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_t
                  # legend.text = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
                  strip.text =  ggplot2::element_text(size = ggplot2::rel(multiplicator*1.0), color = "black"),
                  axis.text.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black"),
-                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = 0.5))
+                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust =-.8))
 ggplot_theta_2_finite <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_topo, y=theta_2_finite, fill=layout)) +
+  ggplot2::ggtitle('Finite jump activity') +
   ggplot2::geom_violin() +
   ggplot2::geom_boxplot(width=0.1, fill='white') +
   ggplot2::geom_hline(yintercept=theta_2, linetype="dashed", color = "black", size=1.1) +
@@ -386,9 +388,10 @@ ggplot_theta_2_finite <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_t
                  # legend.text = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
                  strip.text =  ggplot2::element_text(size = ggplot2::rel(multiplicator*1.0), color = "black"),
                  axis.text.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black"),
-                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = 0.5))
+                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = -.7))
 ggplot_theta_1 <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_topo, y=theta_1, fill=layout)) +
   ggplot2::geom_violin() +
+  ggplot2::ggtitle(' ') +
   ggplot2::geom_boxplot(width=0.1, fill='white') +
   ggplot2::geom_hline(yintercept=theta_1, linetype="dashed", color = "black", size=1.1) +
   ggplot2::scale_fill_manual(values=colors[4:1]) + 
@@ -407,8 +410,9 @@ ggplot_theta_1 <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_topo, y=
                  # legend.text = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
                  strip.text =  ggplot2::element_text(size = ggplot2::rel(multiplicator*1.0), color = "black"),
                  axis.text.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black"),
-                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = 0.5))
+                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = -.7))
 ggplot_theta_2 <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_topo, y=theta_2, fill=layout)) +
+  ggplot2::ggtitle('Infinite jump activity') +
   ggplot2::geom_violin() +
   ggplot2::geom_boxplot(width=0.1, fill='white') +
   ggplot2::geom_hline(yintercept=theta_2, linetype="dashed", color = "black", size=1.1) +
@@ -429,7 +433,7 @@ ggplot_theta_2 <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_topo, y=
                  # legend.text = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
                  strip.text =  ggplot2::element_text(size = ggplot2::rel(multiplicator*1.0), color = "black"),
                  axis.text.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black"),
-                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = 0.5))
+                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = -.8))
 
 setEPS()
 postscript("../data/pictures/layout.eps")
