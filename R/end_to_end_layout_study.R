@@ -58,6 +58,11 @@ mle_theta_vector
 recovery_times <- observed_times
 levy_increments_recovery <- LevyRecovery(fitted_adj = mle_theta_matrix, data = core_wind, times = recovery_times, look_ahead = 1)
 ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$increments)
+finite_levy_recovery_fit <- FitBrownianMotionCompoundPoisson(data = levy_increments_recovery$increments, mesh_size = mesh_size, thresholds = rep(mesh_size^{.499}, n_nodes))
+
+median_n_jumps <- round(finite_levy_recovery_fit$n_jumps %>% unlist %>% median)
+
+
 warning('Set FitLevyRecoveryDiffusion to original version')
 
 #######################################################################
@@ -118,12 +123,24 @@ for(i in c(3)){ # i is the index of the plotted node
 ################ SIMULATION STUDY - ARTIFICIAL DATA ###################
 #######################################################################
 
-set.seed(45)
-n_paths <- 50
+set.seed(42)
+n_paths <- 100
 N <- 10000
 levy_increment_sims <- list()
+finite_increment_sims <- list()
+
 for(i in 1:n_paths){
   levy_increment_sims[[i]] <- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
+}
+
+set.seed(42)
+for(i in 1:n_paths){
+  finite_increment_sims[[i]] <- BrownianMotionCompoundPoisson(
+    n = N,
+    n_jumps = median_n_jumps,
+    sigma = finite_levy_recovery_fit$sigma,
+    jump_sigma = finite_levy_recovery_fit$jump_sigma,
+    delta_time = mesh_size)
 }
 
 DO_PARALLEL <- T
@@ -136,6 +153,7 @@ network_types_name <- c('polymer_mles', 'lattice_mles', 'fc_mles', 're_europe_ml
 
 index_network <- 1
 network_study <- list()
+network_study_finite <- list()
 
 theta_1 <- mle_theta_vector[1]
 theta_2 <- mle_theta_vector[2]
@@ -180,6 +198,26 @@ for(f_network in network_types){
         }
     )
   }
+  if(DO_PARALLEL){
+    num_cores <- detectCores()-1
+    cl <- makeCluster(num_cores)
+    clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims", "network_topo_raw",
+                                "beta", "mesh_size", "n_nodes", "GrouMLE", "NodeMLELong", "CoreNodeMLE", "RowNormalised"
+    ))
+    generated_paths_finite <- parLapply(
+      cl,
+      finite_increment_sims,
+      function(x){ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)}
+    )
+  }else{
+    generated_paths_finite <- lapply(
+      X = finite_increment_sims, 
+      FUN =
+        function(x){
+          ConstructPath(nw_topo = network_topo, noise = x, delta_time = mesh_size, first_point)
+        }
+    )
+  }
   # generated_paths<- rlist::list.save(generated_paths, paste(network_types_name[index_network], '.RData', sep = ''))
   # generated_paths <- rlist::list.load(paste(network_types_name[index_network], '.RData', sep = ''))
   print('paths generated in')
@@ -196,37 +234,72 @@ for(f_network in network_types){
       cl,
       generated_paths,
       function(x){
-        print('network_topo')
-        print(network_topo)
         GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
                 adj = as.matrix(network_topo_raw),
                 data = x,
-                thresholds = rep(10000, n_nodes), # mesh_size^beta
+                thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
                 mode = 'network',
                 output = 'vector')
       }
     )
+  }else{
+    generated_fit <- lapply(
+      X = generated_paths,
+      FUN =
+        function(x){
+          vect <- GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
+                         adj = as.matrix(network_topo_raw),
+                         data = x,
+                         thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                         mode = 'network',
+                         output = 'vector')
+         return(vect)
+        }
+    )
+  }
+
+    # finite
+  if(DO_PARALLEL){
+    clusterExport(cl, varlist=c("n_row_generated"))
+    generated_fit_finite <- parLapply(
+      cl,
+      generated_paths_finite,
+      function(x){
+        vect <- GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
+                adj = as.matrix(network_topo_raw),
+                data = x,
+                thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                mode = 'network',
+                output = 'vector')
+        return(vect)
+      }
+    )
     stopCluster(cl)
   }else{
-    generated_fit <- lapply(X = generated_paths,
-                            FUN =
-                              function(x){
-                                vect <- GrouMLE(times = seq(0, length.out = nrow(generated_paths[[1]]), by = mesh_size),
-                                               adj = as.matrix(network_topo_raw),
-                                               data = x,
-                                               thresholds = rep(1000, n_nodes), # mesh_size^beta
-                                               mode = 'network',
-                                               output = 'vector')
-                               print(vect)
-                               return(vect)
-                              }
+    generated_fit_finite <- lapply(
+      X = generated_paths_finite,
+      FUN =
+        function(x){
+          vect <- GrouMLE(times = seq(0, length.out = nrow(generated_paths_finite[[1]]), by = mesh_size),
+                          adj = as.matrix(network_topo_raw),
+                          data = x,
+                          thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                          mode = 'network',
+                          output = 'vector')
+          return(vect)
+        }
     )
   }
   print('fit generated')
   print(Sys.time()-time_init)
   gen_fit_matrix <- do.call(rbind, generated_fit)
-  network_study[[paste( network_types_name[index_network], '_t1', sep = '')]] <- gen_fit_matrix[,1]
+  network_study[[paste(network_types_name[index_network], '_t1', sep = '')]] <- gen_fit_matrix[,1]
   network_study[[paste(network_types_name[index_network], '_t2', sep = '')]] <- gen_fit_matrix[,2]
+  
+  gen_fit_matrix_finite <- do.call(rbind, generated_fit_finite)
+  network_study_finite[[paste(network_types_name[index_network], '_t1', sep = '')]] <- gen_fit_matrix_finite[,1]
+  network_study_finite[[paste(network_types_name[index_network], '_t2', sep = '')]] <- gen_fit_matrix_finite[,2]
+  
   index_network <- index_network + 1
 }
 
@@ -245,6 +318,7 @@ theta_1
 
 colors <- c('#08605F', '#177E89', '#598381', '#8E936D', '#A2AD59')
 colors2 <- c('#E88D67', '#CA7AB8', '#9999C3', '#7B8CDE')
+layout_names <- c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete')
 par(mfrow=c(2,1), mar=c(2,3,1.8,0.5))
 vioplot::vioplot(network_study[c(7,1,3,5)], names = c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete'),
                  col = colors,
@@ -257,8 +331,114 @@ vioplot::vioplot(network_study[c(8,2,4,6)], names = c('RE-Europe 50', 'Polymer',
                  col =colors,
                  # col = c('#BE2B2B', '#2BBEBE', '#2BBEBE', '#2BBEBE'),
                  main=expression(theta[2]),
-                 cex.main=1.8, cex.names=1.5, cex.axis=1.5, ylim=theta_2*c(0.8,1.2))
+                 cex.main=1.8, cex.names=1.5, cex.axis=1.5, ylim=theta_2*c(0.97,1.03))
 abline(h=theta_2, lwd=2, lty=2)
+
+dt_layout <- data.frame(
+  layout=rep(layout_names, each=n_paths),
+  theta_1 = c(network_study$re_europe_mles_t1, network_study$polymer_mles_t1, network_study$lattice_mles_t1, network_study$fc_mles_t1),
+  theta_2 = c(network_study$re_europe_mles_t2, network_study$polymer_mles_t2, network_study$lattice_mles_t2, network_study$fc_mles_t2),
+  theta_1_finite = c(network_study_finite$re_europe_mles_t1, network_study_finite$polymer_mles_t1, network_study_finite$lattice_mles_t1, network_study_finite$fc_mles_t1),
+  theta_2_finite = c(network_study_finite$re_europe_mles_t2, network_study_finite$polymer_mles_t2, network_study_finite$lattice_mles_t2, network_study_finite$fc_mles_t2)
+)
+
+factor_topo <- factor(dt_layout$layout, level = c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete'))
+multiplicator <- 2.5
+ggplot_theta_1_finite <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_topo, y=theta_1_finite, fill=layout)) +
+  ggplot2::geom_violin() +
+  ggplot2::geom_boxplot(width=0.1, fill='white') +
+  ggplot2::geom_hline(yintercept=theta_1, linetype="dashed", color = "black", size=1.1) +
+  ggplot2::scale_fill_manual(values=colors[4:1]) + 
+  ggplot2::ylab(expression(paste(theta[1]))) +
+  ggplot2::xlab('') +
+  ggplot2::theme(legend.position = "none", 
+                 panel.grid.major = ggplot2::element_blank(), panel.grid.minor = ggplot2::element_blank(),
+                 panel.background = ggplot2::element_blank(), 
+                 strip.background = ggplot2::element_blank(),
+                 axis.title.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5)),
+                 axis.title.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2)),
+                 strip.text.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*.8), color = "black"),
+                 # strip.text.x = ggplot2::element_text(size = ggplot2::rel(1.3), color = "black"),
+                 axis.text.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.4), color = "black"),
+                 # legend.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
+                 # legend.text = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
+                 strip.text =  ggplot2::element_text(size = ggplot2::rel(multiplicator*1.0), color = "black"),
+                 axis.text.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black"),
+                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = 0.5))
+ggplot_theta_2_finite <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_topo, y=theta_2_finite, fill=layout)) +
+  ggplot2::geom_violin() +
+  ggplot2::geom_boxplot(width=0.1, fill='white') +
+  ggplot2::geom_hline(yintercept=theta_2, linetype="dashed", color = "black", size=1.1) +
+  ggplot2::scale_fill_manual(values=colors[4:1]) + 
+  ggplot2::ylab(expression(paste(theta[2]))) +
+  ggplot2::xlab('') +
+  ggplot2::ylim(c(0.98, 1.02) * theta_2) +
+  ggplot2::theme(legend.position = "none", 
+                 panel.grid.major = ggplot2::element_blank(), panel.grid.minor = ggplot2::element_blank(),
+                 panel.background = ggplot2::element_blank(), 
+                 strip.background = ggplot2::element_blank(),
+                 axis.title.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5)),
+                 axis.title.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2)),
+                 strip.text.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*.8), color = "black"),
+                 # strip.text.x = ggplot2::element_text(size = ggplot2::rel(1.3), color = "black"),
+                 axis.text.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.4), color = "black"),
+                 # legend.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
+                 # legend.text = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
+                 strip.text =  ggplot2::element_text(size = ggplot2::rel(multiplicator*1.0), color = "black"),
+                 axis.text.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black"),
+                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = 0.5))
+ggplot_theta_1 <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_topo, y=theta_1, fill=layout)) +
+  ggplot2::geom_violin() +
+  ggplot2::geom_boxplot(width=0.1, fill='white') +
+  ggplot2::geom_hline(yintercept=theta_1, linetype="dashed", color = "black", size=1.1) +
+  ggplot2::scale_fill_manual(values=colors[4:1]) + 
+  ggplot2::ylab(expression(paste(theta[1]))) +
+  ggplot2::xlab('') +
+  ggplot2::theme(legend.position = "none", 
+                 panel.grid.major = ggplot2::element_blank(), panel.grid.minor = ggplot2::element_blank(),
+                 panel.background = ggplot2::element_blank(), 
+                 strip.background = ggplot2::element_blank(),
+                 axis.title.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5)),
+                 axis.title.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2)),
+                 strip.text.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*.8), color = "black"),
+                 # strip.text.x = ggplot2::element_text(size = ggplot2::rel(1.3), color = "black"),
+                 axis.text.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.4), color = "black"),
+                 # legend.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
+                 # legend.text = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
+                 strip.text =  ggplot2::element_text(size = ggplot2::rel(multiplicator*1.0), color = "black"),
+                 axis.text.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black"),
+                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = 0.5))
+ggplot_theta_2 <- ggplot2::ggplot(data=dt_layout, ggplot2::aes(x=factor_topo, y=theta_2, fill=layout)) +
+  ggplot2::geom_violin() +
+  ggplot2::geom_boxplot(width=0.1, fill='white') +
+  ggplot2::geom_hline(yintercept=theta_2, linetype="dashed", color = "black", size=1.1) +
+  ggplot2::scale_fill_manual(values=colors[4:1]) + 
+  ggplot2::ylab(expression(paste(theta[2]))) +
+  ggplot2::xlab('') +
+  ggplot2::ylim(c(0.98, 1.02) * theta_2) +
+  ggplot2::theme(legend.position = "none", 
+                 panel.grid.major = ggplot2::element_blank(), panel.grid.minor = ggplot2::element_blank(),
+                 panel.background = ggplot2::element_blank(), 
+                 strip.background = ggplot2::element_blank(),
+                 axis.title.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5)),
+                 axis.title.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2)),
+                 strip.text.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*.8), color = "black"),
+                 # strip.text.x = ggplot2::element_text(size = ggplot2::rel(1.3), color = "black"),
+                 axis.text.x = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.4), color = "black"),
+                 # legend.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
+                 # legend.text = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.2), color = "black"),
+                 strip.text =  ggplot2::element_text(size = ggplot2::rel(multiplicator*1.0), color = "black"),
+                 axis.text.y = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black"),
+                 plot.title = ggplot2::element_text(size = ggplot2::rel(multiplicator*1.5), color = "black", hjust = 0.5))
+
+setEPS()
+postscript("../data/pictures/layout.eps")
+# png("../data/pictures/layout.png", width = 1600, height = 800)
+gridExtra::grid.arrange(
+  ggplot_theta_1_finite, ggplot_theta_2_finite,
+  ggplot_theta_1, ggplot_theta_2,
+  ncol = 2, nrow = 2)
+dev.off()
  
 #######################################################################
 ###################### SIMULATION STUDY - IEEE ########################

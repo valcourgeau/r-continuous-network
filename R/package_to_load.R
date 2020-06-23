@@ -22,7 +22,10 @@ pckgs_to_load <- c(
   "RcppArmadillo",
   "ghyp",
   "copCAR",
-  "vioplot"
+  "vioplot",
+  "gplots",
+  "ggplot2",
+  "gridExtra"
 )
 
 check.packages <- function(pkg){

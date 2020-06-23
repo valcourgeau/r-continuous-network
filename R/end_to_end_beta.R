@@ -23,7 +23,7 @@ df_load <- data.table::fread(paste(data_path, "Nodal_TS/wind_signal_COSMO.csv", 
 df_load <- df_load[-c(1:10),]
 df_load <- as.matrix(df_load)
 
-clean_wind_data <- CleanData(df_load, frequency = 24, s.window = 24, t.window = 24*7*4)
+clean_wind_data <- CleanData(df_load, frequency = 24, s.window = 24, t.window = 24)
 core_wind <- clean_wind_data$remainders
 plot(clean_wind_data$stl_obj$V2)
 plot(core_wind[,1])
@@ -58,10 +58,9 @@ recovery_times <- observed_times
 levy_increments_recovery <- LevyRecovery(fitted_adj = mle_theta_matrix, data = core_wind, times = recovery_times, look_ahead = 1)
 ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$increments)
 
-
 set.seed(42)
-n_paths <- 10
-N <- 2000
+n_paths <- 5
+N <- 10000
 levy_increment_sims <- list()
 for(i in 1:n_paths){
   levy_increment_sims[[i]]<- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
@@ -169,3 +168,56 @@ for(f_network in network_types){
   beta_study[[index_network]] <- generated_fit
   index_network <- index_network + 1
 }
+
+beta_study_array <- array(dim=c(4, n_paths, length(beta_seq), 2))
+for(i in 1:4){
+  for(j in 1:n_paths){
+    for(k in 1:length(beta_seq)){
+      beta_study_array[i, j, k, ] <- beta_study[[i]][[j]][[k]]
+    }
+  }
+}
+
+alpha_plot <- .45
+cex_lab <- 1.6
+cex_axis <- 1.7
+cex_main <- 1.6
+cex_leg <- 1.0
+
+colors <- c('#08605F', '#598381', '#8E936D', '#A2AD59')
+plot_unique_names <- c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete')
+
+setEPS()
+postscript("../data/pictures/beta_infinite.eps")
+# png("../data/pictures/beta_infinite.png", width = 800, height = 300)
+par(mfrow=c(1,2), mar=c(8,5.5,3,1), xpd=F)
+beta_mean <- apply(beta_study_array, c(1,3,4), mean)
+plot_names <- as.vector(t(vapply(
+  c('MLE'),
+  function(type_of_estimator){
+    vapply(plot_unique_names, function(x){paste(x, type_of_estimator)}, 'w')
+  }, rep('w', length(plot_unique_names)))))
+plot_names
+x_matplot <- matrix(rep(beta_seq, 4), ncol=4, byrow = F)
+matplot(x=x_matplot, y = theta_1-t(beta_mean[,,1])[,c(4,1:3)],
+        type = 'b', pch=rep(22:25, each=1),   bty = "n", ylim=c(-0.03, 0.025),
+        lwd=rep(2, 4),  lty=rep(1, 4), col=colors, 
+        cex.axis=cex_axis, cex.lab=cex_lab, cex.main=cex_main,
+        xlab=expression(paste(beta)),
+        ylab=expression(paste(theta[1]-hat(theta)[1])), main=expression(paste(theta[1]-hat(theta)[1], ' against ', beta)))
+abline(h = 0.0, lty = 2)
+legend(-0.1, -0.0541, plot_names[1:2], lty=rep(c(1), 4)[1:2], bty = "n",
+       pch=rep(22:25, each=1)[1:2], lwd=rep(2, 8)[1:2], cex=cex_leg, ncol = 1, horiz=T, xpd = T,
+       col = rep(colors, each=1)[1:2])
+matplot(x=x_matplot, y = theta_2-t(beta_mean[,,2])[,c(4,1:3)],
+        type = 'b', pch=rep(22:25, each=1),   bty = "n", ylim=c(-0.05, 0.00),
+        lwd=rep(2, 4),  lty=rep(1, 4), col=colors, 
+        cex.axis=cex_axis, cex.lab=cex_lab, cex.main=cex_main,
+        xlab=expression(paste(beta)),
+        ylab=expression(paste(theta[2]-hat(theta)[2])), main=expression(paste(theta[2]-hat(theta)[2], ' against ', beta)))
+abline(h = 0.0, lty = 2)
+legend(-.1, -.072, plot_names[3:4], lty=rep(c(1), 4)[3:4], bty = "n",
+       pch=rep(22:25, each=1)[3:4], lwd=rep(2, 8)[3:4], cex=cex_leg, ncol = 1, horiz=T,
+       col = rep(colors, each=1)[3:4], xpd=T)
+dev.off()
+

@@ -72,6 +72,20 @@ CompoundPoissonJumps <- function(d, n, delta_time, jump_values){
   return(list(noise=results, jump_times=do.call(cbind, jump_times)))
 }
 
+
+CorrelatedJumps <- function(n, sigma){
+  return(CorrelatedBrownianNoise(sigma_matrix = sigma, n = n, delta_time = 1))
+}
+
+BrownianMotionCompoundPoisson <- function(n, sigma, jump_sigma, n_jumps, delta_time){
+  d <- ncol(sigma)
+  jump_vals <- CorrelatedJumps(n = n_jumps, sigma = jump_sigma)
+  cmpnd_poisson <- CompoundPoissonJumps(d = d, n = n, delta_time = delta_time, jump_values = jump_vals)$noise
+  corr_bm_noise <- CorrelatedBrownianNoise(sigma_matrix = sigma, n = n, delta_time = delta_time)
+  
+  return(cmpnd_poisson + corr_bm_noise)
+}
+
 # n_jumps <- 1000
 # cmpnd_poisson <- CompoundPoissonJumps(
 #   d = 3, n = 1000, delta_time = 0.001,
