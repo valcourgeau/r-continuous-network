@@ -60,14 +60,14 @@ ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$incr
 
 
 set.seed(42)
-n_paths <- 2
-N <- 10000
+n_paths <- 10
+N <- 12500
 levy_increment_sims <- list()
 for(i in 1:n_paths){
   levy_increment_sims[[i]]<- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
 }
 
-DO_PARALLEL <- F
+DO_PARALLEL <- T
 
 # choosing network type
 network_types <- list(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
@@ -82,7 +82,7 @@ theta_2 <- mle_theta_vector[2]
 mesh_division <- 16
 mesh_min <- 1e-3
 mesh_max <- 0.5
-
+beta_value <- .4999
 for(f_network in network_types){
   warning('TODO: implement file saves')
   print(index_network)
@@ -99,15 +99,15 @@ for(f_network in network_types){
   first_point <- head(core_wind, 1)
   time_init <- Sys.time() 
   
-  beta <- 0.001
-  mesh_sequence <- seq(from=log(mesh_min), to=log(mesh_max), length.out = mesh_division)
   
+  mesh_sequence <- seq(from=log(mesh_min), to=log(mesh_max), length.out = mesh_division)
+  mesh_sequence <- sort(c(mesh_sequence, log(mesh_size)))
+  cl <- makeCluster(num_cores)
   if(DO_PARALLEL){
     num_cores <- detectCores()-1
-    cl <- makeCluster(num_cores)
     clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims",
-                                "network_topo_raw", "mesh_size", "n_nodes", "GrouMLE", "mesh_sequence",
-                                "NodeMLELong", "CoreNodeMLE", "RowNormalised"))
+                                "network_topo_raw", "mesh_size", "n_nodes", "GrouMLE", "mesh_sequence", "beta_value",
+                                "NodeMLELong", "CoreNodeMLE", "RowNormalised", "FasenRegression"))
     generated_paths <- parLapply(
       cl,
       levy_increment_sims,
@@ -138,14 +138,11 @@ for(f_network in network_types){
         }
     )
   }
-  # generated_paths<- rlist::list.save(generated_paths, paste(network_types_name[index_network], '.RData', sep = ''))
-  # generated_paths <- rlist::list.load(paste(network_types_name[index_network], '.RData', sep = ''))
   print('paths generated in')
   print(Sys.time()-time_init)
   
   # starting from topology
-  #network_topo[which(abs(network_topo) > 1e-16)] <- 1
-  n_row_generated <- N #nrow(generated_paths[[1]][[1]])
+  n_row_generated <- N 
   
   time_init <- Sys.time()
   if(DO_PARALLEL){
@@ -157,10 +154,11 @@ for(f_network in network_types){
         lapply(
           x_with_differen_mesh,
           function(x){
+            gen_fit <- list()
             gen_fit[['mle']] <- GrouMLE(times = seq(0, length.out = n_row_generated, by = exp(x$mesh)),
-                                        adj = as.matrix(network_topo_raw), # TODO network_topo_raw???
+                                        adj = as.matrix(network_topo_raw),
                                         data = x$path,
-                                        thresholds = rep(exp(x$mesh)^beta, n_nodes), # mesh_size^beta
+                                        thresholds = rep(exp(x$mesh)^beta_value, n_nodes),
                                         mode = 'node',
                                         output = 'matrix')
             gen_fit[['fasen']] <- FasenRegression(x$path)
@@ -171,7 +169,6 @@ for(f_network in network_types){
         )
       }
     )
-    stopCluster(cl)
   }else{
     generated_fit <- lapply(
       X = generated_paths,
@@ -181,14 +178,10 @@ for(f_network in network_types){
             x_with_differen_mesh,
             function(x){
               gen_fit <- list()
-              # print('path')
-              # print(x$path)
-              # print('mesh')
-              # print(x$mesh)
               gen_fit[['mle']] <- GrouMLE(times = seq(0, length.out = n_row_generated, by = exp(x$mesh)),
                                           adj = as.matrix(network_topo_raw),
                                           data = as.matrix(x$path),
-                                          thresholds = rep(exp(x$mesh)^beta, n_nodes), # mesh_size^beta
+                                          thresholds = rep(exp(x$mesh)^beta_value, n_nodes), # mesh_size^beta
                                           mode = 'node',
                                           output = 'matrix')
               gen_fit[['fasen']] <- FasenRegression(x$path)
@@ -200,6 +193,7 @@ for(f_network in network_types){
         }
     )
   }
+  stopCluster(cl)
   print('fit generated')
   print(Sys.time()-time_init)
   horizon_study[[index_network]] <- generated_fit
@@ -245,7 +239,7 @@ matplot(x=t(x_matplot), t(apply(horizon_array_mle, c(1,3), mean))[,c(4,1:3)],
         type = 'b', ylim=c(0.025, 1), log='xy', pch=rep(22:25, each=1),   bty = "n",
         lwd=rep(2, 4),  lty=rep(1, 4), col=colors, cex.axis=1.4, cex.lab=1.5,
         xlab=expression(paste('Mesh size ', Delta[N], ' (log)')),
-        ylab='Relative Error Norm', main='Relative L2-Norm Error vs Mesh size with N=10000')
+        ylab='Relative Error Metric', main='Relative L2-Error Metric vs Mesh size with N=10000 on log-log scale')
 legend(.001, .39, plot_names, lty=rep(c(1, 2), 4), bty = "n",
        pch=rep(22:25, each=2), lwd=rep(2, 8), cex=1.1, ncol = 1,
        col = rep(colors, each=2))

@@ -57,13 +57,17 @@ mle_theta_vector
 recovery_times <- observed_times
 levy_increments_recovery <- LevyRecovery(fitted_adj = mle_theta_matrix, data = core_wind, times = recovery_times, look_ahead = 1)
 ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$increments)
-finite_levy_recovery_fit <- FitBrownianMotionCompoundPoisson(data = levy_increments_recovery$increments, mesh_size = mesh_size, thresholds = rep(mesh_size^{.499}, n_nodes))
+finite_levy_recovery_fit <- FitBrownianMotionCompoundPoisson(
+  data = apply(levy_increments_recovery$increments, 2, cumsum),
+  mesh_size = mesh_size, 
+  thresholds = rep(mesh_size^{.499}, n_nodes)
+)
 
 median_n_jumps <- round(finite_levy_recovery_fit$n_jumps %>% unlist %>% median)
 
 set.seed(42)
-n_paths <- 5
-N <- 10000
+n_paths <- 10
+N <- 12500
 levy_increment_sims <- list()
 finite_increment_sims <- list()
 
@@ -81,13 +85,13 @@ for(i in 1:n_paths){
     delta_time = mesh_size)
 }
 
-DO_PARALLEL <- F
+DO_PARALLEL <- T
 
 # choosing network type
 network_types <- list(PolymerNetwork, LatticeNetwork, FullyConnectedNetwork, adj_grid)
 network_types_name <- c('polymer_mles', 'lattice_mles', 'fc_mles', 're_europe_mles')
 
-index_network <- 1
+
 fasen_study <- list()
 fasen_study_finite <- list()
 
@@ -99,8 +103,9 @@ sig_min <- 0.5
 sig_max <- 1e4
 
 sig_sequence <- seq(from=log(sig_min), to=log(sig_max), length.out = sig_division)
-sig_sequence <- log(c(0.5, 1, 10, 100, 1000))
+sig_sequence <- log(c(0.5, 1, 5, 10, 100, 1000))
 
+index_network <- 1
 for(f_network in network_types){
   warning('TODO: implement file saves')
   print(index_network)
@@ -117,14 +122,13 @@ for(f_network in network_types){
   first_point <- head(core_wind, 1)
   time_init <- Sys.time() 
   
-  beta <- 0.499
-  
+  beta_value <- 0.4999
+  cl <- makeCluster(num_cores)
   if(DO_PARALLEL){
     num_cores <- detectCores()-1
-    cl <- makeCluster(num_cores)
     clusterExport(cl, varlist=c("ConstructPath", "network_topo", "mesh_size", "first_point", "levy_increment_sims",
-                                "network_topo_raw", "mesh_size", "n_nodes", "GrouMLE", "sig_sequence",
-                                "NodeMLELong", "CoreNodeMLE", "RowNormalised"))
+                                "network_topo_raw", "mesh_size", "n_nodes", "GrouMLE", "sig_sequence", "beta_value",
+                                "NodeMLELong", "CoreNodeMLE", "RowNormalised", "FasenRegression"))
     generated_paths <- parLapply(
       cl,
       levy_increment_sims,
@@ -173,13 +177,10 @@ for(f_network in network_types){
         }
     )
   }
-  # generated_paths<- rlist::list.save(generated_paths, paste(network_types_name[index_network], '.RData', sep = ''))
-  # generated_paths <- rlist::list.load(paste(network_types_name[index_network], '.RData', sep = ''))
   print('paths generated in')
   print(Sys.time()-time_init)
   
   # starting from topology
-  #network_topo[which(abs(network_topo) > 1e-16)] <- 1
   n_row_generated <- nrow(generated_paths[[1]][[1]])
   
   time_init <- Sys.time()
@@ -194,9 +195,9 @@ for(f_network in network_types){
           function(x){
             gen_fit <- list()
             gen_fit[['mle']] <- GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
-                                        adj = as.matrix(network_topo_raw), # TODO network_topo_raw???
+                                        adj = as.matrix(network_topo_raw),
                                         data = x,
-                                        thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                                        thresholds = rep(mesh_size^beta_value, n_nodes),
                                         mode = 'node',
                                         output = 'matrix')
             gen_fit[['fasen']] <- FasenRegression(x)
@@ -207,7 +208,6 @@ for(f_network in network_types){
         )
       }
     )
-    stopCluster(cl)
   }else{
     generated_fit <- lapply(
       X = generated_paths,
@@ -220,7 +220,7 @@ for(f_network in network_types){
               gen_fit[['mle']] <- GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
                                           adj = as.matrix(network_topo_raw),
                                           data = x,
-                                          thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                                          thresholds = rep(mesh_size^beta_value, n_nodes), # mesh_size^beta
                                           mode = 'node',
                                           output = 'matrix')
               # print('mle')
@@ -238,7 +238,6 @@ for(f_network in network_types){
   
   # FINITE
   if(DO_PARALLEL){
-    clusterExport(cl, varlist=c("n_row_generated"))
     generated_fit_finite <- parLapply(
       cl,
       generated_paths_finite,
@@ -250,7 +249,7 @@ for(f_network in network_types){
             gen_fit[['mle']] <- GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
                                         adj = as.matrix(network_topo_raw), # TODO network_topo_raw???
                                         data = x,
-                                        thresholds = rep(mesh_size^beta, n_nodes), # mesh_size^beta
+                                        thresholds = rep(mesh_size^{beta_value}, n_nodes), # mesh_size^beta
                                         mode = 'node',
                                         output = 'matrix')
             gen_fit[['fasen']] <- FasenRegression(x)
@@ -261,7 +260,6 @@ for(f_network in network_types){
         )
       }
     )
-    stopCluster(cl)
   }else{
     generated_fit_finite <- lapply(
       X = generated_paths_finite,
@@ -290,6 +288,7 @@ for(f_network in network_types){
     )
     print('generated_fit_finite')
   }
+  stopCluster(cl)
   print('fit generated')
   print(Sys.time()-time_init)
   fasen_study[[index_network]] <- generated_fit
@@ -363,15 +362,15 @@ plot_unique_names <- c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete')
          col = rep(colors, each=2)[(1:4-1)*2+1])
 }
 
-setEPS()
-postscript("../data/pictures/fasen.eps")
-# png("../data/pictures/fasen.png", width = 1600, height = 800)
+# setEPS()
+# postscript("../data/pictures/fasen.eps")
+png("../data/pictures/fasen.png", width = 1600, height = 800)
 index_bar_plot <- 1:length(sig_sequence)
 bar_plot_mle <- t(apply(fasen_array_finite_mle, c(1,3), mean))[index_bar_plot, c(4,1:3)]
 bar_plot_ls <- t(apply(fasen_array_finite_ls, c(1,3), mean))[index_bar_plot, c(4,1:3)]
 
-bar_plot_mle_sd <- t(apply(fasen_array_finite_mle, c(1,3), sd))[index_bar_plot, c(4,1:3)]
-bar_plot_ls_sd <- t(apply(fasen_array_finite_ls, c(1,3), sd))[index_bar_plot, c(4,1:3)]
+bar_plot_mle_sd <- t(apply(fasen_array_finite_mle, c(1,3), sd))[index_bar_plot, c(4,1:3)] / sqrt(n_paths)
+bar_plot_ls_sd <- t(apply(fasen_array_finite_ls, c(1,3), sd))[index_bar_plot, c(4,1:3)] / sqrt(n_paths)
 
 dt_fasen <- data.frame(type=c(rep('LS', ncol(bar_plot_ls)*length(index_bar_plot)), rep('MLE', ncol(bar_plot_ls)*length(index_bar_plot))),
                        topo=rep(rep(plot_unique_names, each=length(index_bar_plot)), 2),
@@ -389,7 +388,7 @@ ggplot_finite <- ggplot2::ggplot(data=dt_fasen, ggplot2::aes(x=sigma, y=ren, fil
   ggplot2::scale_fill_manual(values=colors[c(3,1)]) + 
   ggplot2::geom_errorbar(ggplot2::aes(ymin=ren-1.96*ren_sd, ymax=ren+1.96*ren_sd), width=.5, size=1.2,
                          position=ggplot2::position_dodge(.9)) +
-  ggplot2::ylab(expression(paste('Relative  ', L^2, '-Error Norm'))) +
+  ggplot2::ylab(expression(paste('Relative  ', L^2, '-Error Metric'))) +
   ggplot2::xlab(expression(paste('Noise multiplicator ', sigma))) +
   ggplot2::theme(panel.grid.major = ggplot2::element_blank(), panel.grid.minor = ggplot2::element_blank(),
                  panel.background = ggplot2::element_blank(), 
@@ -413,8 +412,8 @@ index_bar_plot <- 1:length(sig_sequence)
 bar_plot_mle <- t(apply(fasen_array_mle, c(1,3), mean))[index_bar_plot, c(4,1:3)]
 bar_plot_ls <- t(apply(fasen_array_ls, c(1,3), mean))[index_bar_plot, c(4,1:3)]
 
-bar_plot_mle_sd <- t(apply(fasen_array_mle, c(1,3), sd))[index_bar_plot, c(4,1:3)]
-bar_plot_ls_sd <- t(apply(fasen_array_ls, c(1,3), sd))[index_bar_plot, c(4,1:3)]
+bar_plot_mle_sd <- t(apply(fasen_array_mle, c(1,3), sd))[index_bar_plot, c(4,1:3)] / sqrt(n_paths)
+bar_plot_ls_sd <- t(apply(fasen_array_ls, c(1,3), sd))[index_bar_plot, c(4,1:3)] / sqrt(n_paths)
 
 dt_fasen <- data.frame(type=c(rep('LS', ncol(bar_plot_ls)*length(index_bar_plot)), rep('MLE', ncol(bar_plot_ls)*length(index_bar_plot))),
            topo=rep(rep(plot_unique_names, each=length(index_bar_plot)), 2),
@@ -431,7 +430,7 @@ ggplot_infinite <- ggplot2::ggplot(data=dt_fasen, ggplot2::aes(x=sigma, y=ren, f
   ggplot2::scale_fill_manual(values=colors[c(3,1)]) + 
   ggplot2::geom_errorbar(ggplot2::aes(ymin=ren-1.96*ren_sd, ymax=ren+1.96*ren_sd), width=.5, size=1.2,
                 position=ggplot2::position_dodge(.9)) +
-  ggplot2::ylab(expression(paste('Relative  ', L^2, '-Error Norm'))) +
+  ggplot2::ylab(expression(paste('Relative  ', L^2, '-Error Metric'))) +
   ggplot2::xlab(expression(paste('Noise multiplicator ', sigma))) +
   ggplot2::theme(panel.grid.major = ggplot2::element_blank(), panel.grid.minor = ggplot2::element_blank(),
         panel.background = ggplot2::element_blank(), 

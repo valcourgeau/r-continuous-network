@@ -66,13 +66,15 @@ FitLevyRecoveryDiffusion <- function(data, look_ahead=1){
 }
 
 FitBrownianMotionCompoundPoisson <- function(data, mesh_size, thresholds=NA){
+  data <- apply(data, 2, cumsum)
   # data are increments
   n_data <- nrow(data)
   delta_data <- apply(data, 2, diff)
   abs_delta_data <- abs(delta_data)
   
   if(any(is.na(thresholds))){
-    filter_jumps <- t(apply(abs_delta_data, 1, '<=', thresholds))
+    stop('update FitBrownianMotionCompoundPoisson with data_original')
+    # filter_jumps <- t(apply(abs_delta_data, 1, '<=', thresholds))
   }else{
     filter_jumps <- t(apply(abs_delta_data, 1, '<=', thresholds))
   }
@@ -80,15 +82,23 @@ FitBrownianMotionCompoundPoisson <- function(data, mesh_size, thresholds=NA){
   if(sum(!filter_jumps) > 0){
     jumps_dt <- apply(filter_jumps, 2, function(x){diff(which(as.numeric(x) == 0))*mesh_size})
     jumps_n <- lapply(jumps_dt, length)
-    jumps_fn_optim <- lapply(jumps_dt, function(times){function(lambda){-(sum(log(1.0-exp(-exp(lambda)*times)))-(n_data-length(times)) * exp(lambda) * mesh_size)}})
-    poisson_intensities <- lapply(jumps_fn_optim, function(fn_optim){exp(optim(par = c(0.0), fn = fn_optim, method = 'BFGS')$par)})
+    jumps_fn_optim <- lapply(
+      jumps_dt, 
+      function(times){
+        function(lambda){
+          prob_no_jump <- exp(-exp(lambda))
+          return(-(sum(log(1.0-exp(-exp(lambda)*times)))+log(prob_no_jump)*(n_data*mesh_size-sum(times))))
+        }
+      }
+    )
+    poisson_intensities <- lapply(jumps_fn_optim, function(fn_optim){exp(optim(par = c(-1), fn = fn_optim, method = 'BFGS')$par)})
+    lapply(jumps_fn_optim, function(fn_optim){print(optim(par = c(-1), fn = fn_optim, method = 'BFGS'))})
     poisson_intensities <- do.call(c, poisson_intensities)
-    
     filtered_delta_data <- abs_delta_data * filter_jumps
     rv_c <- (t(filtered_delta_data) %*% filtered_delta_data) / (mesh_size * n_data)
     rv_total <- (t(abs_delta_data) %*% abs_delta_data) / (mesh_size * n_data)
     rv_d <- as.matrix(rv_total - rv_c)
-    jump_sigma <- t(t(rv_d)/poisson_intensities)
+    jump_sigma <- t(t(rv_d)/(poisson_intensities))
     
     jump_sigma <- as.matrix(Matrix::nearPD(jump_sigma, corr=FALSE)$mat)
     return(list(sigma=rv_c, poisson=poisson_intensities, jump_sigma=jump_sigma, n_jumps=jumps_n))
