@@ -32,7 +32,6 @@ LevyRecovery <- function(fitted_adj, data, times, look_ahead=1){
     q_integrated_x <- t(q_integrated_x)
   }
   
-  cat('q_integrated_x', dim(q_integrated_x), '\n')
   
   # TODO implement ghyp
   # TODO implement with m > 1
@@ -115,4 +114,8 @@ BiPowerVariation <- function(data, mesh_size){
   abs_diff_data_wo_last <- abs_diff_data[1:(n_data-1),]
   cross_prod <- t(abs_diff_data_wo_first) %*% abs_diff_data_wo_last / (mesh_size * n_data)
   return(pi/2*cross_prod)
+}
+
+MoMGHYP <- function(cov_mat){
+  ghyp:::vcov.ghyp()
 }

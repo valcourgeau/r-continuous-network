@@ -28,7 +28,6 @@ core_wind <- clean_wind_data$remainders
 plot(clean_wind_data$stl_obj$V2)
 plot(core_wind[,1])
 std_dev_core_wind <- sqrt(diag(cov(core_wind)))
-core_wind <- t(apply(core_wind, 1, function(x){x / std_dev_core_wind}))
 
 # Network topology
 load_nodes <- read.csv(file=paste(data_path, "Static_data/network_nodes.csv", sep=""))
@@ -57,16 +56,20 @@ mle_theta_vector <- GrouMLE(times=observed_times,
 mle_theta_vector
 
 recovery_times <- observed_times
-levy_increments_recovery <- LevyRecovery(fitted_adj = mle_theta_matrix, data = core_wind, times = recovery_times, look_ahead = 1)
+levy_increments_recovery <- LevyRecovery(
+  fitted_adj = mle_theta_matrix,
+  data = core_wind,
+  times = recovery_times,
+  look_ahead = 1)
 ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$increments)
 finite_levy_recovery_fit <- FitBrownianMotionCompoundPoisson(
   data = levy_increments_recovery$increments,
   mesh_size = mesh_size,
-  thresholds = rep(mesh_size^{.499}, n_nodes))
+  thresholds = rep(mesh_size^{0.4999}, n_nodes))
 finite_levy_recovery_fit$poisson
 finite_levy_recovery_fit$n_jumps
 finite_levy_recovery_fit$jump_sigma
-xlim_plus <- .5
+xlim_plus <-.2
 alpha_plot <- .45
 cex_lab <- 1.6
 cex_axis <- 1.7
@@ -87,7 +90,7 @@ plot(
 )
 apply_idx <- 2
 for(apply_idx in 2:n_nodes){
-  levy_increments_recovery$increments[, apply_idx] %>% (function(x){density(abs(x))}) %>% (function(x){lines(x, col=clrs[apply_idx], lwd=2)})
+  levy_increments_recovery$increments[, apply_idx] %>% (function(x){density(x)}) %>% (function(x){lines(x, col=clrs[apply_idx], lwd=2)})
 }
 
 # Plot of QQ-Plots
@@ -126,8 +129,7 @@ corrplot::corrplot(
 # diag(finite_levy_recovery_fit$jump_sigma)/diag(finite_levy_recovery_fit$sigma)
 # dev.off()
 
-
-N_plot <- 10000
+N_plot <- 5000
 finite_samples <- do.call(cbind, lapply(seq_len(length(finite_levy_recovery_fit$n_jumps)),
        function(j){
          set.seed(43)

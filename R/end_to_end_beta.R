@@ -59,8 +59,8 @@ levy_increments_recovery <- LevyRecovery(fitted_adj = mle_theta_matrix, data = c
 ghyp_levy_recovery_fit <- FitLevyRecoveryDiffusion(levy_increments_recovery$increments)
 
 set.seed(42)
-n_paths <- 5
-N <- 10000
+n_paths <- 50
+N <- 12500
 levy_increment_sims <- list()
 for(i in 1:n_paths){
   levy_increment_sims[[i]]<- matrix(ghyp::rghyp(n = N, object = ghyp_levy_recovery_fit$FULL), nrow=N)
@@ -114,14 +114,10 @@ for(f_network in network_types){
         }
     )
   }
-  # generated_paths<- rlist::list.save(generated_paths, paste(network_types_name[index_network], '.RData', sep = ''))
-  # generated_paths <- rlist::list.load(paste(network_types_name[index_network], '.RData', sep = ''))
   print('paths generated in')
   print(Sys.time()-time_init)
-  
-  # starting from topology
-  #network_topo[which(abs(network_topo) > 1e-16)] <- 1
-  beta <- 0.001
+
+    # starting from topology
   beta_seq <- seq(0.001, to = 0.499, length.out = 10)
   n_row_generated <- nrow(generated_paths[[1]])
   
@@ -137,7 +133,7 @@ for(f_network in network_types){
             GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
                     adj = as.matrix(network_topo),
                     data = x,
-                    thresholds = rep(mesh_size^beta_value, n_nodes), # mesh_size^beta
+                    thresholds = rep(mesh_size^beta_value, n_nodes),
                     mode = 'network',
                     output = 'vector')
           }
@@ -156,7 +152,7 @@ for(f_network in network_types){
               GrouMLE(times = seq(0, length.out = n_row_generated, by = mesh_size),
                       adj = as.matrix(network_topo),
                       data = x,
-                      thresholds = rep(mesh_size^beta_value, n_nodes), # mesh_size^beta
+                      thresholds = rep(mesh_size^beta_value, n_nodes),
                       mode = 'network',
                       output = 'vector')
             }
@@ -179,25 +175,29 @@ for(i in 1:4){
 }
 
 alpha_plot <- .45
-cex_lab <- 1.6
+cex_lab <- 1.8
 cex_axis <- 1.7
-cex_main <- 1.6
-cex_leg <- 1.0
+cex_main <- 2
+cex_leg <- 2
 
 colors <- c('#08605F', '#598381', '#8E936D', '#A2AD59')
 plot_unique_names <- c('RE-Europe 50', 'Polymer', 'Lattice', 'Complete')
 
-setEPS()
-postscript("../data/pictures/beta_infinite.eps")
-# png("../data/pictures/beta_infinite.png", width = 800, height = 300)
+# setEPS()
+# postscript("../data/pictures/beta_infinite.eps")
+png("../data/pictures/beta_infinite.png", width = 1200, height = 450)
 par(mfrow=c(1,2), mar=c(8,5.5,3,1), xpd=F)
+par(xpd=F)
 beta_mean <- apply(beta_study_array, c(1,3,4), mean)
+beta_sd <- apply(beta_study_array, c(1,3,4), sd) / sqrt(n_paths)
+beta_sd
 plot_names <- as.vector(t(vapply(
   c('MLE'),
   function(type_of_estimator){
     vapply(plot_unique_names, function(x){paste(x, type_of_estimator)}, 'w')
   }, rep('w', length(plot_unique_names)))))
 plot_names
+
 x_matplot <- matrix(rep(beta_seq, 4), ncol=4, byrow = F)
 matplot(x=x_matplot, y = theta_1-t(beta_mean[,,1])[,c(4,1:3)],
         type = 'b', pch=rep(22:25, each=1),   bty = "n", ylim=c(-0.03, 0.025),
@@ -206,9 +206,10 @@ matplot(x=x_matplot, y = theta_1-t(beta_mean[,,1])[,c(4,1:3)],
         xlab=expression(paste(beta)),
         ylab=expression(paste(theta[1]-hat(theta)[1])), main=expression(paste(theta[1]-hat(theta)[1], ' against ', beta)))
 abline(h = 0.0, lty = 2)
-legend(-0.1, -0.0541, plot_names[1:2], lty=rep(c(1), 4)[1:2], bty = "n",
+par(xpd=F)
+legend(-0.1, -0.0441, plot_names[1:2], lty=rep(c(1), 4)[1:2], bty = "n",
        pch=rep(22:25, each=1)[1:2], lwd=rep(2, 8)[1:2], cex=cex_leg, ncol = 1, horiz=T, xpd = T,
-       col = rep(colors, each=1)[1:2])
+       col = rep(colors, each=1)[1:2], pt.cex=1.3)
 matplot(x=x_matplot, y = theta_2-t(beta_mean[,,2])[,c(4,1:3)],
         type = 'b', pch=rep(22:25, each=1),   bty = "n", ylim=c(-0.05, 0.00),
         lwd=rep(2, 4),  lty=rep(1, 4), col=colors, 
@@ -216,8 +217,8 @@ matplot(x=x_matplot, y = theta_2-t(beta_mean[,,2])[,c(4,1:3)],
         xlab=expression(paste(beta)),
         ylab=expression(paste(theta[2]-hat(theta)[2])), main=expression(paste(theta[2]-hat(theta)[2], ' against ', beta)))
 abline(h = 0.0, lty = 2)
-legend(-.1, -.072, plot_names[3:4], lty=rep(c(1), 4)[3:4], bty = "n",
+legend(-0, -.063, plot_names[3:4], lty=rep(c(1), 4)[3:4], bty = "n", 
        pch=rep(22:25, each=1)[3:4], lwd=rep(2, 8)[3:4], cex=cex_leg, ncol = 1, horiz=T,
-       col = rep(colors, each=1)[3:4], xpd=T)
+       col = rep(colors, each=1)[3:4], xpd=T, pt.cex=1.3)
 dev.off()
 

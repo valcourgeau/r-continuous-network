@@ -200,8 +200,8 @@ for(f_network in network_types){
   index_network <- index_network + 1
 }
 
-horizon_array_mle <- array(dim=c(4, n_paths, mesh_division-2))
-horizon_array_ls <- array(dim=c(4, n_paths, mesh_division-2))
+horizon_array_mle <- array(dim=c(4, n_paths, mesh_division-1))
+horizon_array_ls <- array(dim=c(4, n_paths, mesh_division-1))
 expm_truth <- as.matrix(Matrix::expm(-horizon_study[[1]][[1]][[1]]$truth*mesh_size))
 for(i in 1:4){
   for(j in 1:n_paths){
@@ -236,11 +236,11 @@ cut_tail <- -2
 png("../data/pictures/horizon.png", width = 800, height = 300)
 x_matplot <- matrix(rep(exp(head(mesh_sequence, cut_tail)), 4), nrow=4, byrow = T)
 matplot(x=t(x_matplot), t(apply(horizon_array_mle, c(1,3), mean))[,c(4,1:3)],
-        type = 'b', ylim=c(0.025, 1), log='xy', pch=rep(22:25, each=1),   bty = "n",
+        type = 'b', ylim=c(0.005, 1), log='xy', pch=rep(22:25, each=1),   bty = "n",
         lwd=rep(2, 4),  lty=rep(1, 4), col=colors, cex.axis=1.4, cex.lab=1.5,
         xlab=expression(paste('Mesh size ', Delta[N], ' (log)')),
         ylab='Relative Error Metric', main='Relative L2-Error Metric vs Mesh size with N=10000 on log-log scale')
-legend(.001, .39, plot_names, lty=rep(c(1, 2), 4), bty = "n",
+legend(.001, .42, plot_names, lty=rep(c(1, 2), 4), bty = "n",
        pch=rep(22:25, each=2), lwd=rep(2, 8), cex=1.1, ncol = 1,
        col = rep(colors, each=2))
 matplot(x=t(x_matplot), t(apply(horizon_array_ls, c(1,3), mean))[,c(4,1:3)],
