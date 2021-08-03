@@ -8,6 +8,7 @@ source("~/GitHub/r-continuous-network/R/utils.R")
 source("~/GitHub/r-continuous-network/R/path_generation.R")
 source("~/GitHub/r-continuous-network/R/grou_mle.R")
 
+library(ntwk)
 # We do not use the load data but wind since load is too correlated and not very random
 AS_SPARSE <- F
 
@@ -16,7 +17,7 @@ AS_SPARSE <- F
 #######################################################################
 
 # Functions and procedures to clean the data
-data_path <- "~/GitHub/r-continuous-network/data/re-europe/"
+data_path <- "~/Downloads/RE-Europe_dataset_package/"
 n_df_load <- 25000
 n_nodes <- 50
 df_load <- data.table::fread(paste(data_path, "Nodal_TS/wind_signal_COSMO.csv", sep=""), nrows = n_df_load+10)[,2:(n_nodes+1)]
@@ -29,12 +30,12 @@ plot(clean_wind_data$stl_obj$V2)
 plot(core_wind[,1])
 
 # Network topology
-load_nodes <- read.csv(file=paste(data_path, "Static_data/network_nodes.csv", sep=""))
+load_nodes <- read.csv(file=paste(data_path, "Metadata/network_nodes.csv", sep=""))
 load_nodes <- load_nodes[1:n_nodes,]
 topo_nodes <- data.frame("name"=load_nodes$ID, 
                          "lon"= load_nodes$longitude,
                          "lat"=load_nodes$latitude)
-load_edges <- read.csv(file=paste(data_path, "Static_data/network_edges.csv", sep=""))
+load_edges <- read.csv(file=paste(data_path, "Metadata/network_edges.csv", sep=""))
 load_edges <- load_edges[which(load_edges$fromNode %in% 1:n_nodes & 
                                  load_edges$toNode %in% 1:n_nodes),]
 topo_edges <- data.frame("from" = load_edges$fromNode, 
